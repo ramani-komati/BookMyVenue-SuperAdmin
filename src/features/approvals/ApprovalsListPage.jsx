@@ -13,24 +13,7 @@ const selectStyle = {
   border: '1px solid var(--border-default)', borderRadius: 10, cursor: 'pointer',
 }
 
-const CELL_BORDER = '2px solid #4B5563'
-
-// Inner lines only — the rounded wrapper draws the outer border,
-// so cells skip their last-column / last-row edges to keep every line 2px.
-const thStyle = (lastCol) => ({
-  borderRight: lastCol ? 'none' : CELL_BORDER,
-  borderBottom: CELL_BORDER,
-  padding: '13px 13px',
-  fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em',
-  color: 'var(--text-muted)', textAlign: 'left', background: '#F4EAE5', whiteSpace: 'nowrap',
-})
-
-const tdStyle = (lastCol, lastRow) => ({
-  borderRight: lastCol ? 'none' : CELL_BORDER,
-  borderBottom: lastRow ? 'none' : CELL_BORDER,
-  padding: '13px 13px',
-  fontSize: 16, verticalAlign: 'middle',
-})
+const GRID = { display: 'grid', gridTemplateColumns: '2.8fr 1.3fr 150px 1.1fr 105px 125px 160px', minWidth: 1180, gap: 12 }
 
 export default function ApprovalsListPage() {
   const { approvals } = useAdmin()
@@ -81,70 +64,50 @@ export default function ApprovalsListPage() {
         </div>
       </div>
 
-      <div className="card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
-        <div style={{ border: CELL_BORDER, borderRadius: 14, overflow: 'hidden', minWidth: 1050 }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontFamily: 'var(--font-body)' }}>
-            <thead>
-              <tr>
-                <th style={thStyle(false)}>Venue</th>
-                <th style={thStyle(false)}>Vendor</th>
-                <th style={thStyle(false)}>Category</th>
-                <th style={thStyle(false)}>Location</th>
-                <th style={{ ...thStyle(false), padding: 0 }}>
-                  <button
-                    onClick={() => setSortDesc((s) => !s)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', padding: '13px 13px', width: '100%', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-heading)', textAlign: 'left', whiteSpace: 'nowrap' }}
-                  >
-                    Submitted {sortDesc ? '↓' : '↑'}
-                  </button>
-                </th>
-                <th style={thStyle(false)}>Complete</th>
-                <th style={thStyle(true)}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((v, idx) => {
-                const [badge, label] = APPROVAL_STATUS_META[v.status]
-                const lastRow = idx === rows.length - 1
-                return (
-                  <tr
-                    key={v.id}
-                    onClick={() => navigate(`/approvals/${v.id}`)}
-                    className="hover-row"
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <td style={{ ...tdStyle(false, lastRow), minWidth: 240 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                        <div style={{ width: 80, height: 58, borderRadius: 10, flex: '0 0 auto', backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${v.photo}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-                        <div style={{ fontSize: 16.5, fontWeight: 700, color: 'var(--text-heading)', lineHeight: 1.3 }}>{v.name}</div>
-                      </div>
-                    </td>
-                    <td style={tdStyle(false, lastRow)}>
-                      <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-heading)' }}>{v.vendor}</div>
-                      <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{v.phone}</div>
-                    </td>
-                    <td style={tdStyle(false, lastRow)}>
-                      <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '5px 12px', borderRadius: 999, whiteSpace: 'nowrap' }}>{v.category}</span>
-                    </td>
-                    <td style={{ ...tdStyle(false, lastRow), color: 'var(--text-muted)' }}>{v.area}, {v.city}</td>
-                    <td style={{ ...tdStyle(false, lastRow), color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{v.submitted}</td>
-                    <td style={{ ...tdStyle(false, lastRow), minWidth: 130 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--neutral-100)', overflow: 'hidden', minWidth: 50 }}>
-                          <div style={{ width: v.completion + '%', height: '100%', borderRadius: 3, background: 'var(--success-500)' }} />
-                        </div>
-                        <span style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--text-muted)' }}>{v.completion}%</span>
-                      </div>
-                    </td>
-                    <td style={{ ...tdStyle(true, lastRow), whiteSpace: 'nowrap' }}>
-                      <Badge status={badge} size="sm">{label}</Badge>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      <div className="card" style={{ padding: '8px 20px 14px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
+        <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
+          <div>Venue</div><div>Vendor</div><div>Category</div><div>Location</div>
+          <button
+            onClick={() => setSortDesc((s) => !s)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-heading)', textAlign: 'left' }}
+          >
+            Submitted {sortDesc ? '↓' : '↑'}
+          </button>
+          <div>Complete</div><div>Status</div>
         </div>
+
+        {rows.map((v) => {
+          const [badge, label] = APPROVAL_STATUS_META[v.status]
+          return (
+            <div
+              key={v.id}
+              onClick={() => navigate(`/approvals/${v.id}`)}
+              className="hover-row"
+              style={{ ...GRID, padding: '16px 12px', fontSize: 16, alignItems: 'center', borderBottom: '1px solid var(--neutral-100)', cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                <div style={{ width: 84, height: 60, borderRadius: 10, flex: '0 0 auto', backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${v.photo}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                <div style={{ fontSize: 16.5, fontWeight: 700, color: 'var(--text-heading)', lineHeight: 1.3 }}>{v.name}</div>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-heading)' }}>{v.vendor}</div>
+                <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{v.phone}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '5px 12px', borderRadius: 999, whiteSpace: 'nowrap' }}>{v.category}</span>
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{v.area}, {v.city}</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{v.submitted}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--neutral-100)', overflow: 'hidden' }}>
+                  <div style={{ width: v.completion + '%', height: '100%', borderRadius: 3, background: 'var(--success-500)' }} />
+                </div>
+                <span style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--text-muted)' }}>{v.completion}%</span>
+              </div>
+              <div><Badge status={badge} size="sm">{label}</Badge></div>
+            </div>
+          )
+        })}
 
         {filtered.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
@@ -156,7 +119,7 @@ export default function ApprovalsListPage() {
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, padding: '16px 0 2px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, padding: '14px 12px 4px' }}>
           <button onClick={() => setPage(Math.max(1, current - 1))} style={{ fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 700, color: 'var(--text-heading)', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 9, padding: '7px 14px', cursor: 'pointer' }}>Previous</button>
           <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>Page {current} of {pages}</span>
           <button onClick={() => setPage(Math.min(pages, current + 1))} style={{ fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 700, color: 'var(--text-heading)', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 9, padding: '7px 14px', cursor: 'pointer' }}>Next</button>
