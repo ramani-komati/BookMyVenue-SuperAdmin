@@ -1,0 +1,44 @@
+@import './tokens.css';
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--surface-page);
+  font-family: var(--font-body);
+  color: var(--text-body);
+}
+
+a { color: var(--red-600); text-decoration: none; }
+a:hover { color: var(--red-700); text-decoration: underline; }
+
+button { font-family: var(--font-body); }
+
+@keyframes bmvShimmer {
+  0% { opacity: .45; }
+  50% { opacity: .9; }
+  100% { opacity: .45; }
+}
+
+input.bmva:focus, textarea.bmva:focus, select.bmva:focus {
+  outline: none;
+  border-color: var(--brand-accent) !important;
+  box-shadow: 0 0 0 3px rgba(241, 37, 46, .18);
+}
+
+/* Warm card used across the admin panel */
+.card {
+  background: #FBF6F4;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.hover-row { transition: background .15s ease; }
+.hover-row:hover { background: #F4EAE5; }
+
+.hover-wash { transition: background .15s ease, border-color .15s ease; }
+.hover-wash:hover { background: #F4EAE5; border-color: var(--border-strong); }
+
+.sidebar-item { transition: background .15s ease; }
+.sidebar-item:hover { background: rgba(255, 255, 255, .07); color: #fff; }

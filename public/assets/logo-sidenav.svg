@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 96" role="img" aria-label="BookMyVenues">
+  <g>
+    <path d="M44 10c-14.4 0-26 11.6-26 26 0 19.5 26 50 26 50s26-30.5 26-50c0-14.4-11.6-26-26-26zm0 36a10 10 0 1 1 0-20 10 10 0 0 1 0 20z" fill="#F1252E"/>
+    <text x="84" y="52" font-family="'Plus Jakarta Sans','Poppins',system-ui,sans-serif" font-size="34" font-weight="800" letter-spacing="-0.5">
+      <tspan fill="#FFFFFF">Book</tspan><tspan fill="#F1252E">My</tspan><tspan fill="#FFFFFF">Venues</tspan>
+    </text>
+    <text x="86" y="78" font-family="'Plus Jakarta Sans',system-ui,sans-serif" font-size="13" font-weight="700" letter-spacing="4" fill="#7789A6">BOOK • CELEBRATE • MEMORIES</text>
+  </g>
+</svg>

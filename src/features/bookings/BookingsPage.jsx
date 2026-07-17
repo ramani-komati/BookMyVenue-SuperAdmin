@@ -1,0 +1,140 @@
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { useAdmin } from '../../context/AdminContext.jsx'
+import { fmt } from '../../data/mockData.js'
+import Badge from '../../components/ui/Badge.jsx'
+import Button from '../../components/ui/Button.jsx'
+
+const BK_META = {
+  confirmed: ['success', 'Confirmed'],
+  completed: ['neutral', 'Completed'],
+  cancelled: ['error', 'Cancelled'],
+  refund_pending: ['warning', 'Refund pending'],
+  refunded: ['info', 'Refunded'],
+}
+
+const TODAY = 15
+
+const selectStyle = {
+  fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, color: 'var(--text-heading)',
+  minHeight: 40, padding: '0 12px', background: 'var(--surface-card)',
+  border: '1px solid var(--border-default)', borderRadius: 10, cursor: 'pointer',
+}
+
+const GRID = { display: 'grid', gridTemplateColumns: '120px 1.5fr 1.1fr 1.3fr 110px 95px 150px', minWidth: 1040, gap: 10 }
+
+export default function BookingsPage() {
+  const { bookings, updateBooking, openModal, logAudit, showToast } = useAdmin()
+
+  const location = useLocation()
+  const [filterStatus, setFilterStatus] = useState('All')
+  const [filterDate, setFilterDate] = useState('All')
+  const [query, setQuery] = useState('')
+  const [expandedId, setExpandedId] = useState(location.state?.expandId || null)
+
+  // Deep links from activity feed / user drawer expand the target booking
+  useEffect(() => {
+    if (location.state?.expandId) setExpandedId(location.state.expandId)
+  }, [location.state])
+
+  const q = query.trim().toLowerCase()
+  const day = (b) => parseInt(b.slot, 10) || 0
+  const filtered = bookings.filter((b) =>
+    (filterStatus === 'All' || b.status === filterStatus) &&
+    (filterDate === 'All' || (filterDate === 'today' ? day(b) === TODAY : filterDate === 'upcoming' ? day(b) > TODAY : day(b) < TODAY)) &&
+    (!q || (b.id + ' ' + b.venue + ' ' + b.customer).toLowerCase().includes(q)))
+
+  const refund = (b) => openModal({
+    title: 'Refund ' + b.id + '?',
+    body: b.customer + ' paid ' + fmt(b.amountNum) + ' by ' + b.method + '. The refund goes back the same way in 5–7 days.',
+    confirmLabel: 'Issue refund', danger: true, needsReason: true,
+    amount: String(b.amountNum), maxAmount: b.amountNum,
+    onConfirm: (reason, amount) => {
+      updateBooking(b.id, { status: 'refunded' })
+      const amt = fmt(Number(amount))
+      logAudit('Issued refund', b.id + ' · ' + amt, b.status + ' → refunded (' + reason + ')')
+      showToast('Refund of ' + amt + ' issued for ' + b.id)
+    },
+  })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
+          <option value="All">Status: All</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="refund_pending">Refund pending</option>
+          <option value="refunded">Refunded</option>
+        </select>
+        <select value={filterDate} onChange={(e) => setFilterDate(e.target.value)} style={selectStyle}>
+          <option value="All">Dates: All</option>
+          <option value="today">Today</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="past">Earlier</option>
+        </select>
+        <input
+          className="bmva" type="text" placeholder="Filter by venue, customer or ID…" value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{ fontFamily: 'var(--font-body)', fontSize: 15.5, color: 'var(--text-heading)', minHeight: 40, padding: '0 14px', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 10, width: 280 }}
+        />
+        <div style={{ flex: 1 }} />
+        <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>
+          {filtered.length} booking{filtered.length === 1 ? '' : 's'}
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
+        <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
+          <div>Booking</div><div>Venue</div><div>Customer</div><div>Date &amp; slot</div><div>Amount</div><div>Method</div><div>Status</div>
+        </div>
+
+        {filtered.map((b) => {
+          const [badge, label] = BK_META[b.status]
+          const expanded = expandedId === b.id
+          const canRefund = b.status === 'confirmed' || b.status === 'refund_pending'
+          return (
+            <div key={b.id} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--neutral-100)', minWidth: 1040 }}>
+              <div
+                onClick={() => setExpandedId(expanded ? null : b.id)}
+                className="hover-row"
+                style={{ ...GRID, padding: '16px 12px', fontSize: 16, alignItems: 'center', cursor: 'pointer' }}
+              >
+                <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.id}</div>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.venue}</div>
+                <div>{b.customer}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{b.slot}</div>
+                <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</div>
+                <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{b.method}</div>
+                <div><Badge status={badge} size="sm">{label}</Badge></div>
+              </div>
+
+              {expanded && (
+                <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', background: '#F4EAE5', borderRadius: 12, padding: 18, margin: '0 12px 12px' }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 16 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>Bill breakdown</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{b.slotsDesc}</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.slotsAmt}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Add-ons</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.addons}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Platform fee</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>₹20</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-subtle)', paddingTop: 7 }}>
+                      <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>Total</span>
+                      <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
+                    </div>
+                  </div>
+                  {canRefund && (
+                    <Button variant="secondary" size="sm" onClick={() => refund(b)}>Issue refund</Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {filtered.length === 0 && (
+          <div style={{ padding: 36, textAlign: 'center', color: 'var(--text-muted)', fontSize: 15 }}>No bookings match these filters.</div>
+        )}
+      </div>
+    </div>
+  )
+}
