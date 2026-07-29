@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAdmin } from '../../context/AdminContext.jsx'
+import useViewport from '../../hooks/useViewport.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 
@@ -9,6 +10,8 @@ const GRID = { display: 'grid', gridTemplateColumns: '34px 2.5fr 1.2fr 140px 100
 
 export default function VenuesPage() {
   const { venues, setVenues, updateVenue, openModal, logAudit, showToast, openDrawer } = useAdmin()
+  const { width } = useViewport()
+  const compact = width < 768
   const [selectedIds, setSelectedIds] = useState([])
 
   const toggleSel = (id) =>
@@ -62,6 +65,52 @@ export default function VenuesPage() {
         </div>
       )}
 
+      {compact ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {venues.map((v) => {
+            const [badge, label] = VENUE_META[v.status]
+            const selected = selectedIds.includes(v.id)
+            return (
+              <div key={v.id} onClick={() => openDrawer('venue', v.id)} className="card hover-wash" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <input type="checkbox" checked={selected} onClick={(e) => e.stopPropagation()} onChange={() => toggleSel(v.id)} style={{ width: 18, height: 18, accentColor: '#F1252E', cursor: 'pointer', flex: '0 0 auto' }} />
+                  <div style={{ width: 70, height: 50, borderRadius: 10, flex: '0 0 auto', backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${v.photo}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)', lineHeight: 1.3 }}>{v.name}</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{v.vendor} · {v.city}</div>
+                    {v.featured && <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red-600)' }}>★ Featured on homepage</div>}
+                  </div>
+                  <Badge status={badge} size="sm">{label}</Badge>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 14.5 }}>
+                  <span style={{ fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '4px 11px', borderRadius: 999, fontSize: 13.5 }}>{v.category}</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{v.price}/hr</span>
+                  <span style={{ color: 'var(--text-muted)' }}>★ {v.rating}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{v.bookings} bookings</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={(e) => { e.stopPropagation(); togglePause(v) }} style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 700, color: 'var(--text-heading)', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 9, padding: '9px 13px', cursor: 'pointer' }}>
+                    {v.status === 'paused' ? 'Unpause' : 'Pause'}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleFeature(v) }}
+                    title="Feature on homepage"
+                    style={{
+                      fontFamily: 'var(--font-body)', fontSize: 16, fontWeight: 700,
+                      color: v.featured ? '#fff' : 'var(--text-muted)',
+                      background: v.featured ? 'var(--red-500)' : 'var(--surface-card)',
+                      border: `1px solid ${v.featured ? 'var(--red-500)' : 'var(--border-default)'}`,
+                      borderRadius: 9, padding: '9px 16px', cursor: 'pointer', flex: '0 0 auto',
+                    }}
+                  >
+                    ★
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
           <div /><div>Venue</div><div>Vendor</div><div>Category</div><div>City</div><div>Price/hr</div><div>Rating</div><div>Bookings</div><div>Status</div><div>Actions</div>
@@ -114,6 +163,7 @@ export default function VenuesPage() {
           )
         })}
       </div>
+      )}
     </div>
   )
 }

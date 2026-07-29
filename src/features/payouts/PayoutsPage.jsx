@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
+import useViewport from '../../hooks/useViewport.js'
 import { fmt } from '../../data/mockData.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
@@ -13,6 +14,8 @@ const GRID = { display: 'grid', gridTemplateColumns: '1.5fr 1.1fr 125px 135px 13
 
 export default function PayoutsPage() {
   const { payoutsList, updatePayout, logAudit, showToast, vendors, openDrawer } = useAdmin()
+  const { width } = useViewport()
+  const compact = width < 768
   const location = useLocation()
   const [tab, setTab] = useState(location.state?.tab || 'Pending')
 
@@ -66,6 +69,39 @@ export default function PayoutsPage() {
         })}
       </div>
 
+      {compact ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {filtered.map((p) => {
+            const [badge, label] = PO_META[p.status]
+            return (
+              <div key={p.id} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    onClick={() => openVendor(p.vendor)}
+                    title="View vendor profile"
+                    style={{ fontFamily: 'var(--font-body)', fontSize: 16, fontWeight: 700, color: 'var(--text-heading)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', textDecorationLine: 'underline', textDecorationColor: 'var(--border-strong)', textUnderlineOffset: 4 }}
+                  >
+                    {p.vendor}
+                  </button>
+                  <span style={{ flex: 1 }} />
+                  <Badge status={badge} size="sm">{label}</Badge>
+                </div>
+                <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{p.period}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 14.5 }}>
+                  <span>Gross <strong style={{ color: 'var(--text-heading)' }}>{fmt(p.grossNum)}</strong></span>
+                  <span style={{ color: 'var(--text-muted)' }}>Commission {fmt(Math.round(p.grossNum * COMMISSION))}</span>
+                  <span>Net <strong style={{ color: 'var(--text-heading)', fontWeight: 800 }}>{fmt(Math.round(p.grossNum * (1 - COMMISSION)))}</strong></span>
+                </div>
+                {p.status === 'pending' && <Button variant="primary" size="sm" block onClick={() => process(p)}>Process payout</Button>}
+                {p.status === 'failed' && <Button variant="secondary" size="sm" block onClick={() => retry(p)}>Retry</Button>}
+              </div>
+            )
+          })}
+          {filtered.length === 0 && (
+            <div className="card" style={{ padding: 36, textAlign: 'center', color: 'var(--text-muted)', fontSize: 15 }}>Nothing in this tab right now.</div>
+          )}
+        </div>
+      ) : (
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
           <div>Vendor</div><div>Period</div><div>Gross</div><div>Commission</div><div>Net payout</div><div>Status</div><div />
@@ -99,6 +135,7 @@ export default function PayoutsPage() {
           <div style={{ padding: 36, textAlign: 'center', color: 'var(--text-muted)', fontSize: 15 }}>Nothing in this tab right now.</div>
         )}
       </div>
+      )}
     </div>
   )
 }

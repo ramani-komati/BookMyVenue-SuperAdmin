@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
+import useViewport from '../../hooks/useViewport.js'
 import { adminApi } from '../../services/adminApi.js'
 import Button from '../../components/ui/Button.jsx'
 import Toast from '../../components/overlays/Toast.jsx'
@@ -12,6 +13,7 @@ const inputStyle = {
 
 export default function LoginPage() {
   const { authed, setAuthed, showToast } = useAdmin()
+  const { isMobile } = useViewport()
   const navigate = useNavigate()
 
   const [step, setStep] = useState(1)
@@ -59,12 +61,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--navy-800)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, fontFamily: 'var(--font-body)', padding: 24 }}>
-      <img src="/assets/logo-sidenav.svg" alt="BookMyVenues" style={{ height: 100, width: 'auto' }} />
+    <div style={{ minHeight: '100vh', background: 'var(--navy-800)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 20 : 28, fontFamily: 'var(--font-body)', padding: isMobile ? 16 : 24 }}>
+      <img src="/assets/logo-sidenav.svg" alt="BookMyVenues" style={{ height: isMobile ? 72 : 100, width: 'auto' }} />
 
-      <div style={{ background: 'var(--surface-card)', borderRadius: 16, boxShadow: 'var(--shadow-lg)', padding: 48, width: 520, maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ background: 'var(--surface-card)', borderRadius: 16, boxShadow: 'var(--shadow-lg)', padding: isMobile ? 24 : 48, width: 520, maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: 24 }}>
         <div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '-0.01em' }}>Admin sign in</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: isMobile ? 25 : 30, fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '-0.01em' }}>Admin sign in</div>
           <div style={{ fontSize: 15.5, color: 'var(--text-muted)', marginTop: 6 }}>For BookMyVenues staff only. Vendors and customers sign in on the app.</div>
         </div>
 

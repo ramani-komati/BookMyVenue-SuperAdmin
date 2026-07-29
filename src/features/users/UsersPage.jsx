@@ -1,4 +1,5 @@
 import { useAdmin } from '../../context/AdminContext.jsx'
+import useViewport from '../../hooks/useViewport.js'
 import { fmt, initials } from '../../data/mockData.js'
 import Badge from '../../components/ui/Badge.jsx'
 
@@ -8,6 +9,32 @@ const GRID = { display: 'grid', gridTemplateColumns: '1.7fr 1.2fr 115px 130px 14
 
 export default function UsersPage() {
   const { users, openDrawer } = useAdmin()
+  const { width } = useViewport()
+  const compact = width < 768
+
+  if (compact) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {users.map((u) => (
+          <div key={u.id} onClick={() => openDrawer('user', u.id)} className="card hover-wash" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--surface-accent-soft)', color: 'var(--red-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, flex: '0 0 auto' }}>{initials(u.name)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)' }}>{u.name}</div>
+                <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{u.phone}</div>
+              </div>
+              <Badge status={USER_META[u.status][0]} size="sm">{USER_META[u.status][1]}</Badge>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 14.5 }}>
+              <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{u.bookings} booking{u.bookings === 1 ? '' : 's'}</span>
+              <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(u.spentNum)} spent</span>
+              <span style={{ color: 'var(--text-muted)' }}>active {u.lastActive.toLowerCase()}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAdmin } from '../../context/AdminContext.jsx'
+import useViewport from '../../hooks/useViewport.js'
 import Button from '../../components/ui/Button.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 
@@ -47,6 +48,9 @@ function ChipAdder({ placeholder, value, onChange, onAdd }) {
 
 export default function SettingsPage() {
   const { settings, markSettings, settingsDirty, commitSettings, discardSettings, logAudit, showToast } = useAdmin()
+
+  const { isMobile } = useViewport()
+  const cardPad = isMobile ? 16 : 24
 
   const [newCategory, setNewCategory] = useState('')
   const [newCity, setNewCity] = useState('')
@@ -100,7 +104,7 @@ export default function SettingsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1100 }}>
       {/* Fees & commission */}
-      <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="card" style={{ padding: cardPad, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={sectionTitle}>Fees &amp; commission</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(220px,100%),1fr))', gap: 14 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -119,21 +123,21 @@ export default function SettingsPage() {
       </div>
 
       {/* Venue categories */}
-      <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="card" style={{ padding: cardPad, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={sectionTitle}>Venue categories</div>
         <ChipList items={settings.categories} onRemove={(label) => markSettings({ categories: settings.categories.filter((x) => x !== label) })} />
         <ChipAdder placeholder="Add a category…" value={newCategory} onChange={setNewCategory} onAdd={() => addChip(newCategory, 'categories', setNewCategory)} />
       </div>
 
       {/* Cities */}
-      <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="card" style={{ padding: cardPad, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={sectionTitle}>Cities &amp; localities</div>
         <ChipList items={settings.cities} onRemove={(label) => markSettings({ cities: settings.cities.filter((x) => x !== label) })} />
         <ChipAdder placeholder="Add a city…" value={newCity} onChange={setNewCity} onAdd={() => addChip(newCity, 'cities', setNewCity)} />
       </div>
 
       {/* Amenities */}
-      <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="card" style={{ padding: cardPad, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={sectionTitle}>Amenities master list</div>
         <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: -8 }}>Vendors pick from this list when adding a venue.</div>
         <ChipList items={settings.amenities} onRemove={(label) => markSettings({ amenities: settings.amenities.filter((x) => x !== label) })} />
@@ -141,7 +145,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Homepage content */}
-      <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="card" style={{ padding: cardPad, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={sectionTitle}>Homepage content</div>
         {settings.banners.map((bn) => (
           <div key={bn.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
@@ -174,7 +178,7 @@ export default function SettingsPage() {
       </div>
 
       {settingsDirty && (
-        <div style={{ position: 'sticky', bottom: 16, display: 'flex', alignItems: 'center', gap: 14, background: 'var(--navy-800)', color: '#fff', borderRadius: 14, padding: '12px 18px', boxShadow: 'var(--shadow-lg)' }}>
+        <div style={{ position: 'sticky', bottom: 16, display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexWrap: 'wrap', background: 'var(--navy-800)', color: '#fff', borderRadius: 14, padding: '12px 18px', boxShadow: 'var(--shadow-lg)' }}>
           <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--warning-500)' }} />
           <span style={{ fontSize: 15, fontWeight: 700 }}>Unsaved changes</span>
           <div style={{ flex: 1 }} />

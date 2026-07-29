@@ -29,7 +29,7 @@ export default function ApprovalDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { approvals, updateApproval, openModal, logAudit, showToast } = useAdmin()
-  const { isNarrow } = useViewport()
+  const { isNarrow, isMobile } = useViewport()
   const [changesOpen, setChangesOpen] = useState(false)
 
   const sel = approvals.find((a) => a.id === Number(id))
@@ -81,22 +81,22 @@ export default function ApprovalDetailPage() {
       <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1.8fr 1fr', gap: 16, alignItems: 'start' }}>
         {/* Left column: photos + facts */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-          <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ height: 380, borderRadius: 12, backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${sel.photo.replace('w=800', 'w=1200')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+          <div className="card" style={{ padding: isMobile ? 12 : 20, display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 14 }}>
+            <div style={{ height: isMobile ? 200 : 380, borderRadius: 12, backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${sel.photo.replace('w=800', 'w=1200')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 10 }}>
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} style={{ height: 104, borderRadius: 10, backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${sel.photo.replace('w=800', 'w=400')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                <div key={i} style={{ height: isMobile ? 84 : 104, borderRadius: 10, backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${sel.photo.replace('w=800', 'w=400')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
               ))}
             </div>
           </div>
 
-          <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="card" style={{ padding: isMobile ? 16 : 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 800, color: 'var(--text-heading)' }}>{sel.name}</div>
               <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '5px 13px', borderRadius: 999 }}>{sel.category}</span>
               <Badge status={badge} size="sm">{statusLabel}</Badge>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, fontSize: 16.5 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 18, fontSize: 16.5 }}>
               <div>
                 <div style={fieldLabel}>Vendor</div>
                 <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{sel.vendor}</div>

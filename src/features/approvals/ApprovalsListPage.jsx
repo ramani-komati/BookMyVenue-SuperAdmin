@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
+import useViewport from '../../hooks/useViewport.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 import { APPROVAL_STATUS_META } from './approvalMeta.js'
@@ -18,6 +19,8 @@ const GRID = { display: 'grid', gridTemplateColumns: '2.8fr 1.3fr 150px 1.1fr 10
 export default function ApprovalsListPage() {
   const { approvals } = useAdmin()
   const navigate = useNavigate()
+  const { width } = useViewport()
+  const compact = width < 768
 
   const [filterStatus, setFilterStatus] = useState('All')
   const [filterCat, setFilterCat] = useState('All')
@@ -64,6 +67,49 @@ export default function ApprovalsListPage() {
         </div>
       </div>
 
+      {compact ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {rows.map((v) => {
+            const [badge, label] = APPROVAL_STATUS_META[v.status]
+            return (
+              <div key={v.id} onClick={() => navigate(`/approvals/${v.id}`)} className="card hover-wash" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 72, height: 52, borderRadius: 10, flex: '0 0 auto', backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${v.photo}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)', lineHeight: 1.3 }}>{v.name}</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{v.vendor} · {v.area}, {v.city}</div>
+                  </div>
+                  <Badge status={badge} size="sm">{label}</Badge>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 14 }}>
+                  <span style={{ fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '4px 11px', borderRadius: 999, fontSize: 13.5 }}>{v.category}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Submitted {v.submitted}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--neutral-100)', overflow: 'hidden' }}>
+                    <div style={{ width: v.completion + '%', height: '100%', borderRadius: 3, background: 'var(--success-500)' }} />
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>{v.completion}% complete</span>
+                </div>
+              </div>
+            )
+          })}
+          {filtered.length === 0 && (
+            <div className="card" style={{ padding: 40, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--surface-accent-soft)', color: 'var(--brand-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="inbox" size={26} />
+              </div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-heading)' }}>No submissions match</div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Try clearing a filter or checking another status.</div>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+            <button onClick={() => setPage(Math.max(1, current - 1))} style={{ fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 700, color: 'var(--text-heading)', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 9, padding: '8px 14px', cursor: 'pointer' }}>Previous</button>
+            <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>Page {current} of {pages}</span>
+            <button onClick={() => setPage(Math.min(pages, current + 1))} style={{ fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 700, color: 'var(--text-heading)', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 9, padding: '8px 14px', cursor: 'pointer' }}>Next</button>
+          </div>
+        </div>
+      ) : (
       <div className="card" style={{ padding: '8px 20px 14px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
           <div>Venue</div><div>Vendor</div><div>Category</div><div>Location</div>
@@ -125,6 +171,7 @@ export default function ApprovalsListPage() {
           <button onClick={() => setPage(Math.min(pages, current + 1))} style={{ fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 700, color: 'var(--text-heading)', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 9, padding: '7px 14px', cursor: 'pointer' }}>Next</button>
         </div>
       </div>
+      )}
     </div>
   )
 }

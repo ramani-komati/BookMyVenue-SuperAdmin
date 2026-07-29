@@ -310,11 +310,11 @@ export default function DetailDrawer() {
     <>
       <div onClick={closeDrawer} style={{ position: 'fixed', inset: 0, background: 'rgba(6,21,44,.45)', zIndex: 40 }} />
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: isMobile ? '100vw' : 500, maxWidth: '100vw', background: 'var(--surface-card)', boxShadow: 'var(--shadow-xl)', zIndex: 41, display: 'flex', flexDirection: 'column', overflowY: 'auto', overflowX: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '26px 30px', borderBottom: '1px solid var(--border-subtle)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '18px 16px' : '26px 30px', borderBottom: '1px solid var(--border-subtle)' }}>
           {header}
           <button onClick={closeDrawer} aria-label="Close" style={{ width: 38, height: 38, borderRadius: 10, border: 'none', background: '#F4EAE5', color: 'var(--text-heading)', cursor: 'pointer', fontSize: 16, fontWeight: 800, flex: '0 0 auto' }}>×</button>
         </div>
-        <div style={{ padding: '26px 30px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ padding: isMobile ? '18px 16px' : '26px 30px', display: 'flex', flexDirection: 'column', gap: isMobile ? 20 : 24 }}>
           {body}
         </div>
       </div>

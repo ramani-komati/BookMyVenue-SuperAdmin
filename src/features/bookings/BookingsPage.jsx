@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
+import useViewport from '../../hooks/useViewport.js'
 import { fmt } from '../../data/mockData.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
@@ -25,6 +26,8 @@ const GRID = { display: 'grid', gridTemplateColumns: '120px 1.5fr 1.1fr 1.3fr 11
 
 export default function BookingsPage() {
   const { bookings, updateBooking, openModal, logAudit, showToast } = useAdmin()
+  const { width } = useViewport()
+  const compact = width < 768
 
   const location = useLocation()
   const [filterStatus, setFilterStatus] = useState('All')
@@ -77,7 +80,7 @@ export default function BookingsPage() {
         <input
           className="bmva" type="text" placeholder="Filter by venue, customer or ID…" value={query}
           onChange={(e) => setQuery(e.target.value)}
-          style={{ fontFamily: 'var(--font-body)', fontSize: 15.5, color: 'var(--text-heading)', minHeight: 40, padding: '0 14px', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 10, width: 280 }}
+          style={{ fontFamily: 'var(--font-body)', fontSize: 15.5, color: 'var(--text-heading)', minHeight: 40, padding: '0 14px', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 10, width: compact ? '100%' : 280 }}
         />
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>
@@ -85,6 +88,52 @@ export default function BookingsPage() {
         </div>
       </div>
 
+      {compact ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {filtered.map((b) => {
+            const [badge, label] = BK_META[b.status]
+            const expanded = expandedId === b.id
+            const canRefund = b.status === 'confirmed' || b.status === 'refund_pending'
+            return (
+              <div key={b.id} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div onClick={() => setExpandedId(expanded ? null : b.id)} style={{ display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontWeight: 800, color: 'var(--text-heading)', fontSize: 15.5 }}>{b.id}</span>
+                    <span style={{ flex: 1 }} />
+                    <Badge status={badge} size="sm">{label}</Badge>
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)' }}>{b.venue}</div>
+                  <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{b.customer} · {b.slot}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15 }}>
+                    <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{b.method}</span>
+                    <span style={{ flex: 1 }} />
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-muted)' }}>{expanded ? 'Hide bill ▲' : 'View bill ▼'}</span>
+                  </div>
+                </div>
+                {expanded && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#F4EAE5', borderRadius: 12, padding: 14 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>Bill breakdown</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15 }}><span>{b.slotsDesc}</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.slotsAmt}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15 }}><span>Add-ons</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.addons}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15 }}><span>Platform fee</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>₹20</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--border-subtle)', paddingTop: 7, fontSize: 15 }}>
+                      <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>Total</span>
+                      <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
+                    </div>
+                    {canRefund && (
+                      <Button variant="secondary" size="sm" block onClick={() => refund(b)}>Issue refund</Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {filtered.length === 0 && (
+            <div className="card" style={{ padding: 36, textAlign: 'center', color: 'var(--text-muted)', fontSize: 15 }}>No bookings match these filters.</div>
+          )}
+        </div>
+      ) : (
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
           <div>Booking</div><div>Venue</div><div>Customer</div><div>Date &amp; slot</div><div>Amount</div><div>Method</div><div>Status</div>
@@ -135,6 +184,7 @@ export default function BookingsPage() {
           <div style={{ padding: 36, textAlign: 'center', color: 'var(--text-muted)', fontSize: 15 }}>No bookings match these filters.</div>
         )}
       </div>
+      )}
     </div>
   )
 }

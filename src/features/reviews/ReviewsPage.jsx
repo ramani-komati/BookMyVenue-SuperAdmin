@@ -1,9 +1,11 @@
 import { useAdmin } from '../../context/AdminContext.jsx'
+import useViewport from '../../hooks/useViewport.js'
 import Button from '../../components/ui/Button.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 
 export default function ReviewsPage() {
   const { reviews, removeReview, openModal, logAudit, showToast, venues, openDrawer } = useAdmin()
+  const { isMobile } = useViewport()
 
   const openVenue = (name) => {
     const venue = venues.find((v) => v.name === name)
@@ -34,7 +36,7 @@ export default function ReviewsPage() {
       </div>
 
       {reviews.map((r) => (
-        <div key={r.id} className="card" style={{ padding: 24, display: 'flex', gap: 18, alignItems: 'flex-start' }}>
+        <div key={r.id} className="card" style={{ padding: isMobile ? 16 : 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 14 : 18, alignItems: isMobile ? 'stretch' : 'flex-start' }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <button
@@ -52,7 +54,7 @@ export default function ReviewsPage() {
               Reported: {r.reason}
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 150, flex: '0 0 auto' }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: 8, width: isMobile ? '100%' : 150, flex: '0 0 auto' }}>
             <Button variant="secondary" size="sm" block onClick={() => keep(r)}>Keep review</Button>
             <Button variant="danger" size="sm" block onClick={() => remove(r)}>Remove</Button>
           </div>

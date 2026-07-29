@@ -51,6 +51,7 @@ export default function AdminLayout() {
 
   const [collapsed, setCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const loadTimer = useRef(null)
   const firstRender = useRef(true)
@@ -74,15 +75,29 @@ export default function AdminLayout() {
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return }
     setMenuOpen(false)
+    setNavOpen(false)
     setLoading(true)
     clearTimeout(loadTimer.current)
     loadTimer.current = setTimeout(() => setLoading(false), 420)
     return () => clearTimeout(loadTimer.current)
   }, [basePath])
 
+  // Mobile nav drawer: Escape closes, body scroll locked while open
+  useEffect(() => {
+    if (!navOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') setNavOpen(false) }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [navOpen])
+
   if (!authed) return <Navigate to="/login" replace />
 
-  const isNarrow = collapsed || viewportNarrow
+  const isNarrow = !isMobile && (collapsed || viewportNarrow)
   const pendingCount = pendingApprovals.length
 
   // Approval detail gets a contextual title
@@ -100,85 +115,121 @@ export default function AdminLayout() {
     navigate('/login')
   }
 
+  const navList = (compact) => NAV_ITEMS.map((it) => {
+    const isActive = it.path === '/' ? location.pathname === '/' : basePath === it.path
+    return (
+      <button
+        key={it.key}
+        onClick={() => { setNavOpen(false); navigate(it.path) }}
+        title={it.label}
+        className={isActive ? undefined : 'sidebar-item'}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 12, height: 44, padding: '0 12px 0 9px',
+          border: 'none', borderLeft: `3px solid ${isActive ? 'var(--brand-accent)' : 'transparent'}`,
+          background: isActive ? 'rgba(255,255,255,.1)' : 'transparent',
+          color: isActive ? '#fff' : 'var(--neutral-300)',
+          fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+          width: '100%', textAlign: 'left', borderRadius: '0 10px 10px 0', flex: '0 0 auto',
+        }}
+      >
+        <span style={{ display: 'flex', flex: '0 0 auto' }}>
+          <Icon name={it.icon} size={20} />
+        </span>
+        {!compact && (
+          <>
+            <span style={{ flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden' }}>{it.label}</span>
+            {it.badge && pendingCount > 0 && (
+              <span style={{ background: 'var(--brand-accent)', color: '#fff', fontSize: 12.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999 }}>{pendingCount}</span>
+            )}
+          </>
+        )}
+      </button>
+    )
+  })
+
+  const navProfile = (compact) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', borderTop: '1px solid rgba(255,255,255,.1)', marginTop: 6, flex: '0 0 auto' }}>
+      <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--red-500)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15, flex: '0 0 auto' }}>{ADMIN.initials}</div>
+      {!compact && (
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 15.5, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>{ADMIN.name}</div>
+          <div style={{ fontSize: 15.5, color: 'var(--navy-300)' }}>{ADMIN.role}</div>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface-page)', fontFamily: 'var(--font-body)', color: 'var(--text-body)' }}>
-      {/* Sidebar */}
-      <aside style={{ width: isNarrow ? 68 : 250, flex: '0 0 auto', background: 'var(--navy-800)', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '20px 12px 16px', gap: 2, transition: 'width .2s ease' }}>
-        <button
-          onClick={() => navigate('/')}
-          title="BookMyVenues home"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 0 20px', minHeight: 48, background: 'none', border: 'none', cursor: 'pointer' }}
-        >
-          {isNarrow ? (
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 800, color: '#fff' }}>B<span style={{ color: 'var(--red-500)' }}>M</span>V</div>
-          ) : (
-            <img src="/assets/logo-sidenav.svg" alt="BookMyVenues" style={{ height: 60, width: 'auto', maxWidth: '100%', objectFit: 'contain' }} />
-          )}
-        </button>
+      {/* Sidebar (desktop / tablet) */}
+      {!isMobile && (
+        <aside style={{ width: isNarrow ? 68 : 250, flex: '0 0 auto', background: 'var(--navy-800)', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '20px 12px 16px', gap: 2, transition: 'width .2s ease' }}>
+          <button
+            onClick={() => navigate('/')}
+            title="BookMyVenues home"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 0 20px', minHeight: 48, background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            {isNarrow ? (
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 800, color: '#fff' }}>B<span style={{ color: 'var(--red-500)' }}>M</span>V</div>
+            ) : (
+              <img src="/assets/logo-sidenav.svg" alt="BookMyVenues" style={{ height: 60, width: 'auto', maxWidth: '100%', objectFit: 'contain' }} />
+            )}
+          </button>
 
-        {NAV_ITEMS.map((it) => {
-          const isActive = it.path === '/' ? location.pathname === '/' : basePath === it.path
-          return (
-            <button
-              key={it.key}
-              onClick={() => navigate(it.path)}
-              title={it.label}
-              className={isActive ? undefined : 'sidebar-item'}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12, height: 44, padding: '0 12px 0 9px',
-                border: 'none', borderLeft: `3px solid ${isActive ? 'var(--brand-accent)' : 'transparent'}`,
-                background: isActive ? 'rgba(255,255,255,.1)' : 'transparent',
-                color: isActive ? '#fff' : 'var(--neutral-300)',
-                fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, cursor: 'pointer',
-                width: '100%', textAlign: 'left', borderRadius: '0 10px 10px 0',
-              }}
-            >
-              <span style={{ display: 'flex', flex: '0 0 auto' }}>
-                <Icon name={it.icon} size={20} />
-              </span>
-              {!isNarrow && (
-                <>
-                  <span style={{ flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden' }}>{it.label}</span>
-                  {it.badge && pendingCount > 0 && (
-                    <span style={{ background: 'var(--brand-accent)', color: '#fff', fontSize: 12.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999 }}>{pendingCount}</span>
-                  )}
-                </>
-              )}
-            </button>
-          )
-        })}
+          {navList(isNarrow)}
 
-        <div style={{ flex: '1 1 auto' }} />
+          <div style={{ flex: '1 1 auto' }} />
 
-        <button
-          onClick={() => setCollapsed((c) => !c)}
-          title="Collapse"
-          className="sidebar-item"
-          style={{ display: 'flex', alignItems: 'center', gap: 12, height: 44, padding: '0 12px', border: 'none', background: 'none', color: 'var(--neutral-300)', fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, cursor: 'pointer', borderRadius: 10 }}
-        >
-          <span style={{ display: 'flex', transform: isNarrow ? 'rotate(180deg)' : 'none', transition: 'transform .2s ease' }}>
-            <Icon name="chevrons-left" size={20} />
-          </span>
-          {!isNarrow && <span>Collapse</span>}
-        </button>
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            title="Collapse"
+            className="sidebar-item"
+            style={{ display: 'flex', alignItems: 'center', gap: 12, height: 44, padding: '0 12px', border: 'none', background: 'none', color: 'var(--neutral-300)', fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, cursor: 'pointer', borderRadius: 10 }}
+          >
+            <span style={{ display: 'flex', transform: isNarrow ? 'rotate(180deg)' : 'none', transition: 'transform .2s ease' }}>
+              <Icon name="chevrons-left" size={20} />
+            </span>
+            {!isNarrow && <span>Collapse</span>}
+          </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', borderTop: '1px solid rgba(255,255,255,.1)', marginTop: 6 }}>
-          <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--red-500)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15, flex: '0 0 auto' }}>{ADMIN.initials}</div>
-          {!isNarrow && (
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>{ADMIN.name}</div>
-              <div style={{ fontSize: 15.5, color: 'var(--navy-300)' }}>{ADMIN.role}</div>
+          {navProfile(isNarrow)}
+        </aside>
+      )}
+
+      {/* Mobile slide-in nav */}
+      {isMobile && navOpen && (
+        <>
+          <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(6,21,44,.5)', zIndex: 50 }} />
+          <aside style={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: 264, maxWidth: '85vw', background: 'var(--navy-800)', zIndex: 51, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '18px 12px 16px', gap: 2, boxShadow: 'var(--shadow-xl)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 16px' }}>
+              <img src="/assets/logo-sidenav.svg" alt="BookMyVenues" style={{ height: 48, width: 'auto', objectFit: 'contain' }} />
+              <button onClick={() => setNavOpen(false)} aria-label="Close menu" style={{ width: 38, height: 38, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,.1)', color: '#fff', cursor: 'pointer', fontSize: 17, fontWeight: 800, flex: '0 0 auto' }}>×</button>
             </div>
-          )}
-        </div>
-      </aside>
+            {navList(false)}
+            <div style={{ flex: '1 1 auto' }} />
+            {navProfile(false)}
+          </aside>
+        </>
+      )}
 
       {/* Main column */}
       <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         {/* Top bar */}
-        <header style={{ display: 'flex', alignItems: 'center', gap: 16, minHeight: 68, padding: `10px ${isMobile ? 14 : 28}px`, flexWrap: 'wrap', background: 'var(--surface-card)', borderBottom: '1px solid var(--border-subtle)', position: 'relative', zIndex: 20 }}>
+        <header style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16, minHeight: 68, padding: `10px ${isMobile ? 14 : 28}px`, flexWrap: 'wrap', background: 'var(--surface-card)', borderBottom: '1px solid var(--border-subtle)', position: 'relative', zIndex: 20 }}>
+          {isMobile && (
+            <button
+              onClick={() => setNavOpen(true)}
+              aria-label="Open menu"
+              className="hover-wash"
+              style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-heading)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}
+            >
+              <Icon name="menu" size={24} />
+            </button>
+          )}
           <div style={{ flex: '1 1 auto' }} />
-          <span style={{ fontSize: 12.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--success-700)', background: 'var(--success-50)', padding: '5px 11px', borderRadius: 999 }}>Production</span>
+          {!isMobile && (
+            <span style={{ fontSize: 12.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--success-700)', background: 'var(--success-50)', padding: '5px 11px', borderRadius: 999 }}>Production</span>
+          )}
 
           <button
             onClick={() => navigate('/approvals')}
@@ -193,9 +244,9 @@ export default function AdminLayout() {
           </button>
 
           <div ref={menuRef} style={{ position: 'relative' }}>
-            <button onClick={() => setMenuOpen((o) => !o)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px 6px 6px', borderRadius: 999, background: '#F4EAE5', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+            <button onClick={() => setMenuOpen((o) => !o)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isMobile ? 6 : '6px 10px 6px 6px', borderRadius: 999, background: '#F4EAE5', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
               <span style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--navy-800)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15 }}>{ADMIN.initials}</span>
-              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>{ADMIN.shortName}</span>
+              {!isMobile && <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>{ADMIN.shortName}</span>}
             </button>
             {menuOpen && (
               <div style={{ position: 'absolute', top: 52, right: 0, width: 230, background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, boxShadow: 'var(--shadow-lg)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10, zIndex: 30 }}>
@@ -212,7 +263,7 @@ export default function AdminLayout() {
 
         <main style={{ flex: '1 1 auto', padding: isMobile ? '18px 14px 56px' : '26px 28px 60px', display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '-0.01em' }}>{pageTitle}</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: isMobile ? 22 : 27, fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '-0.01em' }}>{pageTitle}</div>
           </div>
           {loading || dataStatus === 'loading' || dataStatus === 'idle'
             ? <LoadingSkeleton />

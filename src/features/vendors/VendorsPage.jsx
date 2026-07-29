@@ -1,4 +1,5 @@
 import { useAdmin } from '../../context/AdminContext.jsx'
+import useViewport from '../../hooks/useViewport.js'
 import { fmt, initials } from '../../data/mockData.js'
 import Badge from '../../components/ui/Badge.jsx'
 
@@ -9,6 +10,34 @@ const GRID = { display: 'grid', gridTemplateColumns: '1.6fr 1.1fr 1.4fr 90px 120
 
 export default function VendorsPage() {
   const { vendors, openDrawer } = useAdmin()
+  const { width } = useViewport()
+  const compact = width < 768
+
+  if (compact) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {vendors.map((p) => (
+          <div key={p.id} onClick={() => openDrawer('vendor', p.id)} className="card hover-wash" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--navy-50)', color: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, flex: '0 0 auto' }}>{initials(p.name)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)' }}>{p.name}</div>
+                <div style={{ fontSize: 14, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.phone} · {p.email}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 14.5 }}>
+              <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{p.venues} venue{p.venues === 1 ? '' : 's'}</span>
+              <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(p.earningsNum)}</span>
+              <span style={{ color: 'var(--text-muted)' }}>since {p.joined}</span>
+              <span style={{ flex: 1 }} />
+              <Badge status={KYC_META[p.kyc][0]} size="sm">{'KYC ' + KYC_META[p.kyc][1]}</Badge>
+              <Badge status={ACC_META[p.acc][0]} size="sm">{ACC_META[p.acc][1]}</Badge>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
