@@ -11,7 +11,8 @@ npm install
 npm run dev        # http://localhost:5175
 ```
 
-**Demo sign-in:** any work email + any password (4+ chars), then OTP `246810`.
+**Sign-in:** a real admin account (email + password, provisioned in the Django backend) — the
+login OTP is sent to the admin's registered phone. There is no demo mode.
 
 ## Features
 
@@ -39,17 +40,16 @@ the audit log.
 ## API service layer
 
 All data access goes through `src/services/adminApi.js` (same pattern as the vendor app's
-`venueApi`). `USE_MOCK` is on by default and serves the seed data from `src/data/mockData.js`
-with realistic latency; set `VITE_ADMIN_USE_MOCK=false` (plus `VITE_ADMIN_API_BASE`) to point at
-the Django backend — components never touch the network directly.
+`venueApi`), talking to the live Django backend at `/api/admin` (cookie session,
+`{ "detail": "..." }` errors). Base URL defaults to production; override with
+`VITE_ADMIN_API_BASE` — components never touch the network directly.
 
 - Reads: `adminApi.fetchAll()` bootstraps everything after sign-in (loading skeleton → data, or
-  the design's "Couldn't load this data" card with Retry on failure).
+  the design's "Couldn't load this data" card with Retry on failure). A 401/403 clears the local
+  auth flag and returns to the sign-in screen.
 - Writes: optimistic local updates + fire-and-forget `adminApi.*` calls; a sync failure surfaces
   as a toast without losing the local change.
-- Auth: `adminApi.login` / `verifyOtp` / `logout` — swap the mock for real staff auth later.
-- Dev/test hook: `localStorage.setItem('bmv-mock-fail', '1')` makes the next fetch fail so the
-  error state can be exercised.
+- Auth: `adminApi.login` / `verifyOtp` / `logout` (email + password → SMS OTP → session cookie).
 
 ## Structure
 
@@ -60,8 +60,8 @@ src/
     overlays/                 # ConfirmModal, DetailDrawer, Toast
     ui/                       # Button, Badge, StatCard, Icon (design-system components)
   context/AdminContext.jsx    # global store: collections, audit, toast/modal/drawer
-  data/mockData.js            # seed data
   features/                   # one folder per screen (auth, dashboard, approvals, …)
+  utils/format.js             # shared display formatters (fmt, initials)
   hooks/useViewport.js        # responsive breakpoints (mobile <640, narrow <1024)
   styles/                     # design-system tokens + global styles
 ```

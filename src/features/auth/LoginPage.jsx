@@ -50,8 +50,9 @@ export default function LoginPage() {
     setPending(true)
     try {
       await adminApi.verifyOtp({ email, otp })
-      setAuthed(true)
-      showToast('Welcome back, Anita 👋')
+      setAuthed(true, email)
+      const first = (email.split('@')[0].split(/[._-]/)[0] || 'admin')
+      showToast(`Welcome back, ${first[0].toUpperCase() + first.slice(1)} 👋`)
       navigate('/')
     } catch (e) {
       setErr(e.message || 'Could not verify the code — try again.')
@@ -110,7 +111,6 @@ export default function LoginPage() {
                 onKeyDown={(e) => e.key === 'Enter' && submitOtp()}
                 style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 700, letterSpacing: 12, textAlign: 'center', color: 'var(--text-heading)', minHeight: 62, padding: '0 16px', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 12 }}
               />
-              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Demo code: <strong>246810</strong></div>
             </div>
             {err && (
               <div style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--error-600)', background: 'var(--error-50)', padding: '10px 14px', borderRadius: 10 }}>{err}</div>

@@ -5,8 +5,10 @@ import useViewport from '../../hooks/useViewport.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 import { APPROVAL_STATUS_META } from './approvalMeta.js'
+import { placeOf, statusMeta } from '../../utils/format.js'
+import { TELANGANA_DISTRICTS } from '../../constants/districts.js'
 
-const PAGE_SIZE = 4
+const PAGE_SIZE = 10
 
 const selectStyle = {
   fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, color: 'var(--text-heading)',
@@ -29,11 +31,24 @@ export default function ApprovalsListPage() {
   const [sortDesc, setSortDesc] = useState(true)
 
   const day = (a) => parseInt(a.submitted, 10) || 0
+
+  // District filter: every Telangana district (what vendors pick in the
+  // wizard), plus any district/city value present in the data that isn't in
+  // the list — so no approval is ever unfilterable. Categories come from the
+  // data itself.
+  const cityOptions = [...new Set([
+    ...TELANGANA_DISTRICTS,
+    ...approvals.flatMap((a) => [a.district, a.city]).filter(Boolean),
+  ])]
+  const categoryOptions = [...new Set(approvals.map((a) => a.category).filter(Boolean))].sort()
+  // A record matches when the chosen district equals its district OR (for
+  // records from before the backend exposed `district`) its city field.
+  const matchesCity = (a) => filterCity === 'All' || a.district === filterCity || a.city === filterCity
   const filtered = approvals
     .filter((a) =>
       (filterStatus === 'All' || a.status === filterStatus) &&
       (filterCat === 'All' || a.category === filterCat) &&
-      (filterCity === 'All' || a.city === filterCity))
+      matchesCity(a))
     .sort((a, b) => (sortDesc ? day(b) - day(a) : day(a) - day(b)))
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -54,12 +69,11 @@ export default function ApprovalsListPage() {
         </select>
         <select value={filterCat} onChange={resetPage(setFilterCat)} style={selectStyle}>
           <option value="All">Category: All</option>
-          <option>Sports Turf</option><option>Banquet Hall</option><option>Party Hall</option>
-          <option>Swimming Pool</option><option>Private Theatre</option>
+          {categoryOptions.map((c) => <option key={c}>{c}</option>)}
         </select>
         <select value={filterCity} onChange={resetPage(setFilterCity)} style={selectStyle}>
           <option value="All">City: All</option>
-          <option>Hyderabad</option><option>Bengaluru</option><option>Pune</option>
+          {cityOptions.map((c) => <option key={c}>{c}</option>)}
         </select>
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>
@@ -70,14 +84,14 @@ export default function ApprovalsListPage() {
       {compact ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {rows.map((v) => {
-            const [badge, label] = APPROVAL_STATUS_META[v.status]
+            const [badge, label] = statusMeta(APPROVAL_STATUS_META, v.status)
             return (
               <div key={v.id} onClick={() => navigate(`/approvals/${v.id}`)} className="card hover-wash" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 72, height: 52, borderRadius: 10, flex: '0 0 auto', backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${v.photo}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)', lineHeight: 1.3 }}>{v.name}</div>
-                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{v.vendor} · {v.area}, {v.city}</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{v.vendor} · {placeOf(v)}</div>
                   </div>
                   <Badge status={badge} size="sm">{label}</Badge>
                 </div>
@@ -123,7 +137,7 @@ export default function ApprovalsListPage() {
         </div>
 
         {rows.map((v) => {
-          const [badge, label] = APPROVAL_STATUS_META[v.status]
+          const [badge, label] = statusMeta(APPROVAL_STATUS_META, v.status)
           return (
             <div
               key={v.id}
@@ -142,7 +156,7 @@ export default function ApprovalsListPage() {
               <div>
                 <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '5px 12px', borderRadius: 999, whiteSpace: 'nowrap' }}>{v.category}</span>
               </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{v.area}, {v.city}</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{placeOf(v)}</div>
               <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{v.submitted}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--neutral-100)', overflow: 'hidden' }}>

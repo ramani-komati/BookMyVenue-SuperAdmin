@@ -2,22 +2,26 @@ import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
-import { fmt } from '../../data/mockData.js'
+import { fmt, statusMeta } from '../../utils/format.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 import StatCard from '../../components/ui/StatCard.jsx'
 
-const COMMISSION = 0.10
 const PO_META = { pending: ['warning', 'Pending'], completed: ['success', 'Completed'], failed: ['error', 'Failed'] }
 
-const GRID = { display: 'grid', gridTemplateColumns: '1.5fr 1.1fr 125px 135px 130px 125px 155px', minWidth: 1060, gap: 10 }
+const GRID = { display: 'grid', gridTemplateColumns: '1.5fr 1.1fr 150px 125px 155px', minWidth: 820, gap: 10 }
 
 export default function PayoutsPage() {
-  const { payoutsList, updatePayout, logAudit, showToast, vendors, openDrawer } = useAdmin()
+  const { payoutsList, updatePayout, logAudit, showToast, vendors, openDrawer, settings, bookings } = useAdmin()
   const { width } = useViewport()
   const compact = width < 768
   const location = useLocation()
   const [tab, setTab] = useState(location.state?.tab || 'Pending')
+
+  // The platform's ONLY charge is the flat booking fee (₹20 by default,
+  // configurable in Platform Settings) added to each ONLINE booking. There is
+  // no percentage commission — vendors receive their full booking amount.
+  const bookingFee = Number(settings?.fee) || 20
 
   const openVendor = (name) => {
     const vendor = vendors.find((v) => v.name === name)
@@ -26,13 +30,18 @@ export default function PayoutsPage() {
 
   const filtered = payoutsList.filter((p) => p.status === tab.toLowerCase())
   const duePayouts = payoutsList.filter((p) => p.status === 'pending')
-  const dueNet = duePayouts.reduce((a, p) => a + Math.round(p.grossNum * (1 - COMMISSION)), 0)
+  const dueTotal = duePayouts.reduce((a, p) => a + (Number(p.grossNum) || 0), 0)
+  // Platform earnings = fee × online bookings. Walk-ins carry no fee (the
+  // vendor records them at the venue; no online payment happens).
+  const isWalkIn = (b) => b.walkIn === true || String(b.method || '').toLowerCase() === 'walk-in'
+  const onlineBookings = bookings.filter((b) => !isWalkIn(b))
+  const platformEarnings = bookingFee * onlineBookings.length
 
   const process = (p) => {
     updatePayout(p.id, { status: 'completed' })
-    const net = fmt(Math.round(p.grossNum * (1 - COMMISSION)))
-    logAudit('Processed payout', p.vendor + ' · ' + net, 'pending → completed')
-    showToast(net + ' payout to ' + p.vendor + ' processed')
+    const amt = fmt(Number(p.grossNum) || 0)
+    logAudit('Processed payout', p.vendor + ' · ' + amt, 'pending → completed')
+    showToast(amt + ' payout to ' + p.vendor + ' processed')
   }
 
   const retry = (p) => {
@@ -44,8 +53,8 @@ export default function PayoutsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(260px,100%),340px))', gap: 14 }}>
-        <StatCard label="Total pending payouts" prefix="₹" value={dueNet.toLocaleString('en-IN')} icon="indian-rupee" tone="warning" trendLabel={duePayouts.length ? duePayouts.length + ' vendors waiting' : 'all settled'} />
-        <StatCard label="Commission this month" prefix="₹" value="1,92,700" icon="wallet" tone="navy" trend={9} trendLabel="vs last month" />
+        <StatCard label="Total pending payouts" prefix="₹" value={dueTotal.toLocaleString('en-IN')} icon="indian-rupee" tone="warning" trendLabel={duePayouts.length ? duePayouts.length + ' vendors waiting' : 'all settled'} />
+        <StatCard label="Platform earnings" prefix="₹" value={platformEarnings.toLocaleString('en-IN')} icon="wallet" tone="navy" trendLabel={`₹${bookingFee} fee × ${onlineBookings.length} online booking${onlineBookings.length === 1 ? '' : 's'}`} />
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -72,7 +81,7 @@ export default function PayoutsPage() {
       {compact ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtered.map((p) => {
-            const [badge, label] = PO_META[p.status]
+            const [badge, label] = statusMeta(PO_META, p.status)
             return (
               <div key={p.id} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -88,9 +97,7 @@ export default function PayoutsPage() {
                 </div>
                 <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{p.period}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 14.5 }}>
-                  <span>Gross <strong style={{ color: 'var(--text-heading)' }}>{fmt(p.grossNum)}</strong></span>
-                  <span style={{ color: 'var(--text-muted)' }}>Commission {fmt(Math.round(p.grossNum * COMMISSION))}</span>
-                  <span>Net <strong style={{ color: 'var(--text-heading)', fontWeight: 800 }}>{fmt(Math.round(p.grossNum * (1 - COMMISSION)))}</strong></span>
+                  <span>Payout <strong style={{ color: 'var(--text-heading)', fontWeight: 800 }}>{fmt(Number(p.grossNum) || 0)}</strong></span>
                 </div>
                 {p.status === 'pending' && <Button variant="primary" size="sm" block onClick={() => process(p)}>Process payout</Button>}
                 {p.status === 'failed' && <Button variant="secondary" size="sm" block onClick={() => retry(p)}>Retry</Button>}
@@ -104,11 +111,11 @@ export default function PayoutsPage() {
       ) : (
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-          <div>Vendor</div><div>Period</div><div>Gross</div><div>Commission</div><div>Net payout</div><div>Status</div><div />
+          <div>Vendor</div><div>Period</div><div>Payout amount</div><div>Status</div><div />
         </div>
 
         {filtered.map((p) => {
-          const [badge, label] = PO_META[p.status]
+          const [badge, label] = statusMeta(PO_META, p.status)
           return (
             <div key={p.id} style={{ ...GRID, padding: '16px 12px', fontSize: 16, alignItems: 'center', borderBottom: '1px solid var(--neutral-100)' }}>
               <button
@@ -119,9 +126,7 @@ export default function PayoutsPage() {
                 {p.vendor}
               </button>
               <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{p.period}</div>
-              <div>{fmt(p.grossNum)}</div>
-              <div style={{ color: 'var(--text-muted)' }}>{fmt(Math.round(p.grossNum * COMMISSION))}</div>
-              <div style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(Math.round(p.grossNum * (1 - COMMISSION)))}</div>
+              <div style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(Number(p.grossNum) || 0)}</div>
               <div><Badge status={badge} size="sm">{label}</Badge></div>
               <div>
                 {p.status === 'pending' && <Button variant="primary" size="sm" onClick={() => process(p)}>Process payout</Button>}

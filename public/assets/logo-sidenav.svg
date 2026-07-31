@@ -1,6 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 96" role="img" aria-label="BookMyVenues">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 424 96" role="img" aria-label="BookMyVenues">
   <g>
-    <path d="M44 10c-14.4 0-26 11.6-26 26 0 19.5 26 50 26 50s26-30.5 26-50c0-14.4-11.6-26-26-26zm0 36a10 10 0 1 1 0-20 10 10 0 0 1 0 20z" fill="#F1252E"/>
+    <!-- Location pin — solid red (no white interior), navy circle with white
+         "Bo" and a red check badge. -->
+    <path d="M44 10c-14.4 0-26 11.6-26 26 0 19.5 26 50 26 50s26-30.5 26-50c0-14.4-11.6-26-26-26z" fill="#F1252E"/>
+    <circle cx="44" cy="35.5" r="13" fill="#06152C"/>
+    <text x="44" y="41" text-anchor="middle" font-family="'Plus Jakarta Sans','Poppins',system-ui,sans-serif" font-size="16" font-weight="800" fill="#FFFFFF">B</text>
+    <circle cx="52.5" cy="41.5" r="4.8" fill="#F1252E"/>
+    <path d="M50.4 41.5l1.5 1.5 2.8-3" stroke="#FFFFFF" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     <text x="84" y="52" font-family="'Plus Jakarta Sans','Poppins',system-ui,sans-serif" font-size="34" font-weight="800" letter-spacing="-0.5">
       <tspan fill="#FFFFFF">Book</tspan><tspan fill="#F1252E">My</tspan><tspan fill="#FFFFFF">Venues</tspan>
     </text>

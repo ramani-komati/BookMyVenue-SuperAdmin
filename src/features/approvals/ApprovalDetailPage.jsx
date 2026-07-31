@@ -5,6 +5,7 @@ import useViewport from '../../hooks/useViewport.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 import { APPROVAL_STATUS_META } from './approvalMeta.js'
+import { placeOf, statusMeta } from '../../utils/format.js'
 
 const CHECK_DEFS = [
   { key: 'photos', label: 'Photos are clear & real' },
@@ -28,15 +29,21 @@ const fieldLabel = { fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase'
 export default function ApprovalDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { approvals, updateApproval, openModal, logAudit, showToast } = useAdmin()
+  const { approvals, updateApproval, openModal, logAudit, showToast, admin } = useAdmin()
   const { isNarrow, isMobile } = useViewport()
   const [changesOpen, setChangesOpen] = useState(false)
 
-  const sel = approvals.find((a) => a.id === Number(id))
+  // Approval ids are UUID strings from the real API (numeric in old demo data)
+  // — compare as strings so both shapes match.
+  const sel = approvals.find((a) => String(a.id) === String(id))
   if (!sel) return <Navigate to="/approvals" replace />
 
-  const [badge, statusLabel] = APPROVAL_STATUS_META[sel.status]
-  const checksDone = sel.checks.photos && sel.checks.pricing && sel.checks.payout
+  const [badge, statusLabel] = statusMeta(APPROVAL_STATUS_META, sel.status)
+  // Real API records may omit optional blocks — never crash on them.
+  const checks = sel.checks || {}
+  const timeline = Array.isArray(sel.timeline) ? sel.timeline : []
+  const photoUrl = String(sel.photo || '')
+  const checksDone = checks.photos && checks.pricing && checks.payout
   const reasonsSelected = sel._reqReasons || []
   const isDecidable = sel.status === 'pending'
   const decidedNote = sel.status === 'approved'
@@ -46,13 +53,13 @@ export default function ApprovalDetailPage() {
       : 'Rejected — vendor was told why.'
 
   const approve = () => {
-    updateApproval(sel.id, { status: 'approved', timeline: [...sel.timeline, { label: 'Approved by Anita', time: 'Just now' }] })
+    updateApproval(sel.id, { status: 'approved', timeline: [...timeline, { label: `Approved by ${admin.shortName}`, time: 'Just now' }] })
     logAudit('Approved venue', sel.name, 'pending → live')
     showToast(sel.name + ' is now live — vendor notified by SMS')
   }
 
   const sendChanges = () => {
-    updateApproval(sel.id, { status: 'changes', timeline: [...sel.timeline, { label: 'Changes requested', time: 'Just now' }] })
+    updateApproval(sel.id, { status: 'changes', timeline: [...timeline, { label: 'Changes requested', time: 'Just now' }] })
     setChangesOpen(false)
     logAudit('Requested changes', sel.name, reasonsSelected.join('; '))
     showToast('Sent to ' + sel.vendor + ' — they can fix & resubmit')
@@ -63,7 +70,7 @@ export default function ApprovalDetailPage() {
     body: 'The vendor will see your reason and can fix & resubmit. This is recorded in the audit log.',
     confirmLabel: 'Reject venue', danger: true, needsReason: true,
     onConfirm: (reason) => {
-      updateApproval(sel.id, { status: 'rejected', timeline: [...sel.timeline, { label: 'Rejected: ' + reason, time: 'Just now' }] })
+      updateApproval(sel.id, { status: 'rejected', timeline: [...timeline, { label: 'Rejected: ' + reason, time: 'Just now' }] })
       logAudit('Rejected venue', sel.name, 'reason: ' + reason)
       showToast(sel.name + ' rejected — vendor notified')
     },
@@ -82,10 +89,10 @@ export default function ApprovalDetailPage() {
         {/* Left column: photos + facts */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
           <div className="card" style={{ padding: isMobile ? 12 : 20, display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 14 }}>
-            <div style={{ height: isMobile ? 200 : 380, borderRadius: 12, backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${sel.photo.replace('w=800', 'w=1200')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+            <div style={{ height: isMobile ? 200 : 380, borderRadius: 12, backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${photoUrl.replace('w=800', 'w=1200')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 10 }}>
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} style={{ height: isMobile ? 84 : 104, borderRadius: 10, backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${sel.photo.replace('w=800', 'w=400')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                <div key={i} style={{ height: isMobile ? 84 : 104, borderRadius: 10, backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${photoUrl.replace('w=800', 'w=400')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
               ))}
             </div>
           </div>
@@ -104,7 +111,7 @@ export default function ApprovalDetailPage() {
               </div>
               <div>
                 <div style={fieldLabel}>Location</div>
-                <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{sel.area}, {sel.city}</div>
+                <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{placeOf(sel)}</div>
                 <a
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sel.name + ', ' + sel.area + ', ' + sel.city)}`}
                   target="_blank"
@@ -125,7 +132,7 @@ export default function ApprovalDetailPage() {
               <div style={{ gridColumn: '1/-1' }}>
                 <div style={{ ...fieldLabel, marginBottom: 6 }}>Amenities</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {sel.amenities.map((am) => (
+                  {(sel.amenities || []).map((am) => (
                     <span key={am} style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--text-body)', background: '#F4EAE5', padding: '7px 14px', borderRadius: 999 }}>{am}</span>
                   ))}
                 </div>
@@ -145,12 +152,12 @@ export default function ApprovalDetailPage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
               {CHECK_DEFS.map((c) => {
-                const on = sel.checks[c.key]
+                const on = checks[c.key]
                 const st = checkStyle(on)
                 return (
                   <button
                     key={c.key}
-                    onClick={() => updateApproval(sel.id, { checks: { ...sel.checks, [c.key]: !on } })}
+                    onClick={() => updateApproval(sel.id, { checks: { ...checks, [c.key]: !on } })}
                     style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', border: `1px solid ${st.border}`, background: st.bg, borderRadius: 11, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, color: 'var(--text-heading)', textAlign: 'left', width: '100%', transition: '.15s ease' }}
                   >
                     <span style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${st.boxBorder}`, background: st.boxBg, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, flex: '0 0 auto' }}>{st.mark}</span>
@@ -208,9 +215,9 @@ export default function ApprovalDetailPage() {
 
           <div className="card" style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>Timeline</div>
-            {sel.timeline.map((t, i) => (
+            {timeline.map((t, i) => (
               <div key={i} style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: i === sel.timeline.length - 1 ? 'var(--red-500)' : 'var(--neutral-300)', marginTop: 4, flex: '0 0 auto' }} />
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: i === timeline.length - 1 ? 'var(--red-500)' : 'var(--neutral-300)', marginTop: 4, flex: '0 0 auto' }} />
                 <div>
                   <div style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--text-heading)' }}>{t.label}</div>
                   <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{t.time}</div>

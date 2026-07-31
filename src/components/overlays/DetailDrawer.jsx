@@ -1,12 +1,11 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
-import { fmt, initials } from '../../data/mockData.js'
+import { bookingRef, fmt, initials, placeOf, statusMeta } from '../../utils/format.js'
 import Badge from '../ui/Badge.jsx'
 import Button from '../ui/Button.jsx'
 import useViewport from '../../hooks/useViewport.js'
 
-const KYC_META = { verified: ['success', 'Verified'], pending: ['warning', 'Pending'], rejected: ['error', 'Rejected'] }
 const USER_META = { active: ['success', 'Active'], blocked: ['error', 'Blocked'] }
 const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'] }
 
@@ -59,7 +58,7 @@ export default function DetailDrawer() {
   if (drawer.type === 'venue') {
     const v = venues.find((x) => x.id === drawer.id)
     if (!v) return null
-    const [badge, statusLabel] = VENUE_META[v.status]
+    const [badge, statusLabel] = statusMeta(VENUE_META, v.status)
     const owner = vendors.find((x) => x.name === v.vendor)
 
     const togglePause = () => {
@@ -92,14 +91,14 @@ export default function DetailDrawer() {
         <div style={{ width: 72, height: 52, borderRadius: 10, flex: '0 0 auto', backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${v.photo}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 800, color: 'var(--text-heading)' }}>{v.name}</div>
-          <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{v.category} · {v.area}, {v.city}</div>
+          <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{v.category} · {placeOf(v)}</div>
         </div>
       </>
     )
 
     body = (
       <>
-        <div style={{ height: 210, borderRadius: 12, backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${v.photo.replace('w=480', 'w=900')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+        <div style={{ height: 210, borderRadius: 12, backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${String(v.photo || '').replace('w=480', 'w=900')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <Badge status={badge} size="md">{statusLabel}</Badge>
@@ -116,7 +115,7 @@ export default function DetailDrawer() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={sectionTitle}>Venue details</div>
-          <DetailRow label="Location" value={v.area + ', ' + v.city} />
+          <DetailRow label="Location" value={placeOf(v)} />
           <DetailRow label="Capacity" value={v.capacity} />
           <DetailRow label="Open hours" value={v.hours} />
           <DetailRow label="Packages" value={v.packages} />
@@ -126,7 +125,7 @@ export default function DetailDrawer() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={sectionTitle}>Amenities</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {v.amenities.map((am) => (
+            {(v.amenities || []).map((am) => (
               <span key={am} style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--text-body)', background: '#F4EAE5', padding: '7px 14px', borderRadius: 999 }}>{am}</span>
             ))}
           </div>
@@ -171,22 +170,13 @@ export default function DetailDrawer() {
           { label: 'Venues', value: p.venues },
           { label: 'Total earnings', value: fmt(p.earningsNum) },
           { label: 'Joined', value: p.joined },
-          { label: 'KYC', value: KYC_META[p.kyc][1] },
         ],
         items: theirVenues.map((v) => ({
           label: v.name,
-          sub: v.city + ' · ' + VENUE_META[v.status][1],
+          sub: v.city + ' · ' + statusMeta(VENUE_META, v.status)[1],
           onClick: () => openDrawer('venue', v.id),
         })),
         payout: p.payout,
-        kycBadge: KYC_META[p.kyc][0],
-        kycLabel: KYC_META[p.kyc][1],
-        canVerify: p.kyc === 'pending',
-        verify: () => {
-          updateVendor(p.id, { kyc: 'verified' })
-          logAudit('Verified KYC', p.name, 'pending → verified')
-          showToast(p.name + "'s KYC verified")
-        },
         dangerVariant: p.acc === 'active' ? 'danger' : 'secondary',
         dangerLabel: p.acc === 'active' ? 'Suspend account' : 'Reactivate account',
         dangerAction: () => {
@@ -222,10 +212,10 @@ export default function DetailDrawer() {
           { label: 'Bookings', value: u.bookings },
           { label: 'Total spent', value: fmt(u.spentNum) },
           { label: 'Last active', value: u.lastActive },
-          { label: 'Status', value: USER_META[u.status][1] },
+          { label: 'Status', value: statusMeta(USER_META, u.status)[1] },
         ],
         items: theirBookings.map((b) => ({
-          label: b.id + ' · ' + b.venue,
+          label: bookingRef(b.id) + ' · ' + b.venue,
           sub: fmt(b.amountNum),
           onClick: () => { closeDrawer(); navigate('/bookings', { state: { expandId: b.id } }) },
         })),
@@ -290,11 +280,7 @@ export default function DetailDrawer() {
               <div style={{ ...sectionTitle, marginTop: 8 }}>Payout account</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', border: '1px solid var(--border-subtle)', borderRadius: 11 }}>
                 <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>{view.payout}</span>
-                <Badge status={view.kycBadge} size="sm">{view.kycLabel}</Badge>
               </div>
-              {view.canVerify && (
-                <Button variant="navy" size="sm" block onClick={view.verify}>Verify KYC</Button>
-              )}
             </>
           )}
         </div>

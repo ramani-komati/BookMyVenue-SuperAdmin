@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
+import { placeOf } from '../../utils/format.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 
-const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'] }
+const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], pending: ['warning', 'Pending'], rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'] }
+// Unknown statuses from the API must never crash the page — show them as-is.
+const venueMeta = (status) => VENUE_META[status] || ['draft', status || 'Unknown']
 
 const GRID = { display: 'grid', gridTemplateColumns: '34px 2.5fr 1.2fr 140px 100px 100px 80px 100px 120px 175px', minWidth: 1280, gap: 10 }
 
@@ -56,6 +59,11 @@ export default function VenuesPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Received-count — the page renders EVERY venue the bootstrap returns
+          (no client-side filter), so a short list means a short API response. */}
+      <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-muted)' }}>
+        {venues.length === 0 ? 'No venues yet.' : `${venues.length} venue${venues.length === 1 ? '' : 's'}`}
+      </div>
       {selectedIds.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'var(--navy-800)', color: '#fff', borderRadius: 12, padding: '10px 16px' }}>
           <span style={{ fontSize: 15, fontWeight: 700 }}>{selectedIds.length} selected</span>
@@ -68,7 +76,7 @@ export default function VenuesPage() {
       {compact ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {venues.map((v) => {
-            const [badge, label] = VENUE_META[v.status]
+            const [badge, label] = venueMeta(v.status)
             const selected = selectedIds.includes(v.id)
             return (
               <div key={v.id} onClick={() => openDrawer('venue', v.id)} className="card hover-wash" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer' }}>
@@ -77,7 +85,7 @@ export default function VenuesPage() {
                   <div style={{ width: 70, height: 50, borderRadius: 10, flex: '0 0 auto', backgroundColor: 'var(--neutral-100)', backgroundImage: `url('${v.photo}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)', lineHeight: 1.3 }}>{v.name}</div>
-                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{v.vendor} · {v.city}</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{v.vendor} · {placeOf(v)}</div>
                     {v.featured && <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red-600)' }}>★ Featured on homepage</div>}
                   </div>
                   <Badge status={badge} size="sm">{label}</Badge>
@@ -117,7 +125,7 @@ export default function VenuesPage() {
         </div>
 
         {venues.map((v) => {
-          const [badge, label] = VENUE_META[v.status]
+          const [badge, label] = venueMeta(v.status)
           const selected = selectedIds.includes(v.id)
           return (
             <div
@@ -136,7 +144,7 @@ export default function VenuesPage() {
               </div>
               <div style={{ fontSize: 16 }}>{v.vendor}</div>
               <div><span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '5px 12px', borderRadius: 999, whiteSpace: 'nowrap' }}>{v.category}</span></div>
-              <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{v.city}</div>
+              <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{placeOf(v)}</div>
               <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{v.price}</div>
               <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{v.rating}</div>
               <div>{v.bookings}</div>

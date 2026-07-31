@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
-import { fmt } from '../../data/mockData.js'
+import { bookingRef, fmt, statusMeta } from '../../utils/format.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 
@@ -25,7 +25,10 @@ const selectStyle = {
 const GRID = { display: 'grid', gridTemplateColumns: '120px 1.5fr 1.1fr 1.3fr 110px 95px 150px', minWidth: 1040, gap: 10 }
 
 export default function BookingsPage() {
-  const { bookings, updateBooking, openModal, logAudit, showToast } = useAdmin()
+  const { bookings, updateBooking, openModal, logAudit, showToast, settings } = useAdmin()
+  // Per-row: the booking's own frozen fee (what was actually charged) wins;
+  // the current platform fee is only the fallback for older records.
+  const rowFee = (b) => '₹' + (b.fee != null && Number.isFinite(Number(b.fee)) ? Number(b.fee) : Number(settings?.fee) || 20)
   const { width } = useViewport()
   const compact = width < 768
 
@@ -42,21 +45,32 @@ export default function BookingsPage() {
 
   const q = query.trim().toLowerCase()
   const day = (b) => parseInt(b.slot, 10) || 0
+  // Which screen/pitch was booked: unit bookings target the unit's own
+  // listing ("RK PARTY HOUSE — Screen 2"), so the unit is recoverable from
+  // the name; an explicit unitLabel from the API wins when present.
+  const splitUnit = (b) => {
+    const full = String(b.venue || '')
+    const hasSep = full.includes(' — ')
+    return {
+      base: hasSep ? full.split(' — ')[0] : full,
+      unit: b.unitLabel || (hasSep ? full.split(' — ').slice(1).join(' — ') : ''),
+    }
+  }
   const filtered = bookings.filter((b) =>
     (filterStatus === 'All' || b.status === filterStatus) &&
     (filterDate === 'All' || (filterDate === 'today' ? day(b) === TODAY : filterDate === 'upcoming' ? day(b) > TODAY : day(b) < TODAY)) &&
-    (!q || (b.id + ' ' + b.venue + ' ' + b.customer).toLowerCase().includes(q)))
+    (!q || (b.id + ' ' + bookingRef(b.id) + ' ' + b.venue + ' ' + b.customer + ' ' + (b.phone || '')).toLowerCase().includes(q)))
 
   const refund = (b) => openModal({
-    title: 'Refund ' + b.id + '?',
+    title: 'Refund ' + bookingRef(b.id) + '?',
     body: b.customer + ' paid ' + fmt(b.amountNum) + ' by ' + b.method + '. The refund goes back the same way in 5–7 days.',
     confirmLabel: 'Issue refund', danger: true, needsReason: true,
     amount: String(b.amountNum), maxAmount: b.amountNum,
     onConfirm: (reason, amount) => {
       updateBooking(b.id, { status: 'refunded' })
       const amt = fmt(Number(amount))
-      logAudit('Issued refund', b.id + ' · ' + amt, b.status + ' → refunded (' + reason + ')')
-      showToast('Refund of ' + amt + ' issued for ' + b.id)
+      logAudit('Issued refund', bookingRef(b.id) + ' · ' + amt, b.status + ' → refunded (' + reason + ')')
+      showToast('Refund of ' + amt + ' issued for ' + bookingRef(b.id))
     },
   })
 
@@ -91,19 +105,24 @@ export default function BookingsPage() {
       {compact ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtered.map((b) => {
-            const [badge, label] = BK_META[b.status]
+            const [badge, label] = statusMeta(BK_META, b.status)
             const expanded = expandedId === b.id
             const canRefund = b.status === 'confirmed' || b.status === 'refund_pending'
             return (
               <div key={b.id} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div onClick={() => setExpandedId(expanded ? null : b.id)} style={{ display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontWeight: 800, color: 'var(--text-heading)', fontSize: 15.5 }}>{b.id}</span>
+                    <span style={{ fontWeight: 800, color: 'var(--text-heading)', fontSize: 15.5 }}>{bookingRef(b.id)}</span>
                     <span style={{ flex: 1 }} />
                     <Badge status={badge} size="sm">{label}</Badge>
                   </div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)' }}>{b.venue}</div>
-                  <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{b.customer} · {b.slot}</div>
+                  {(() => { const u = splitUnit(b); return (
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {u.base}
+                      {u.unit && <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '3px 9px', borderRadius: 999 }}>{u.unit}</span>}
+                    </div>
+                  ) })()}
+                  <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{b.customer}{b.phone ? ` · ${b.phone}` : ''} · {b.slot}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15 }}>
                     <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
                     <span style={{ color: 'var(--text-muted)' }}>{b.method}</span>
@@ -116,7 +135,7 @@ export default function BookingsPage() {
                     <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>Bill breakdown</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15 }}><span>{b.slotsDesc}</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.slotsAmt}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15 }}><span>Add-ons</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.addons}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15 }}><span>Platform fee</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>₹20</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15 }}><span>Platform fee</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{rowFee(b)}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--border-subtle)', paddingTop: 7, fontSize: 15 }}>
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>Total</span>
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
@@ -140,7 +159,7 @@ export default function BookingsPage() {
         </div>
 
         {filtered.map((b) => {
-          const [badge, label] = BK_META[b.status]
+          const [badge, label] = statusMeta(BK_META, b.status)
           const expanded = expandedId === b.id
           const canRefund = b.status === 'confirmed' || b.status === 'refund_pending'
           return (
@@ -150,9 +169,17 @@ export default function BookingsPage() {
                 className="hover-row"
                 style={{ ...GRID, padding: '16px 12px', fontSize: 16, alignItems: 'center', cursor: 'pointer' }}
               >
-                <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.id}</div>
-                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.venue}</div>
-                <div>{b.customer}</div>
+                <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{bookingRef(b.id)}</div>
+                {(() => { const u = splitUnit(b); return (
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.base}</div>
+                    {u.unit && <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--navy-600)' }}>{u.unit}</div>}
+                  </div>
+                ) })()}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.customer}</div>
+                  {b.phone && <div style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>{b.phone}</div>}
+                </div>
                 <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{b.slot}</div>
                 <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</div>
                 <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{b.method}</div>
@@ -165,7 +192,7 @@ export default function BookingsPage() {
                     <div style={{ fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>Bill breakdown</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{b.slotsDesc}</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.slotsAmt}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Add-ons</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.addons}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Platform fee</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>₹20</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Platform fee</span><span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{rowFee(b)}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-subtle)', paddingTop: 7 }}>
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>Total</span>
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>

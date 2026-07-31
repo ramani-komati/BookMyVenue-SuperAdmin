@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ADMIN, useAdmin } from '../../context/AdminContext.jsx'
+import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
 import Icon from '../ui/Icon.jsx'
 import ConfirmModal from '../overlays/ConfirmModal.jsx'
@@ -44,7 +44,7 @@ function LoadingSkeleton() {
 }
 
 export default function AdminLayout() {
-  const { authed, setAuthed, pendingApprovals, approvals, dataStatus, retryLoad } = useAdmin()
+  const { authed, setAuthed, admin, pendingApprovals, approvals, dataStatus, retryLoad } = useAdmin()
   const { isMobile, isNarrow: viewportNarrow } = useViewport()
   const location = useLocation()
   const navigate = useNavigate()
@@ -100,11 +100,12 @@ export default function AdminLayout() {
   const isNarrow = !isMobile && (collapsed || viewportNarrow)
   const pendingCount = pendingApprovals.length
 
-  // Approval detail gets a contextual title
+  // Approval detail gets a contextual title. Ids are UUID strings from the
+  // real API — match any non-slash segment and compare as strings.
   let pageTitle = TITLES[basePath] || 'Dashboard'
-  const approvalIdMatch = location.pathname.match(/^\/approvals\/(\d+)$/)
+  const approvalIdMatch = location.pathname.match(/^\/approvals\/([^/]+)$/)
   if (approvalIdMatch) {
-    const sel = approvals.find((a) => a.id === Number(approvalIdMatch[1]))
+    const sel = approvals.find((a) => String(a.id) === decodeURIComponent(approvalIdMatch[1]))
     if (sel) pageTitle = 'Review: ' + sel.name
   }
 
@@ -149,11 +150,11 @@ export default function AdminLayout() {
 
   const navProfile = (compact) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', borderTop: '1px solid rgba(255,255,255,.1)', marginTop: 6, flex: '0 0 auto' }}>
-      <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--red-500)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15, flex: '0 0 auto' }}>{ADMIN.initials}</div>
+      <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--red-500)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15, flex: '0 0 auto' }}>{admin.initials}</div>
       {!compact && (
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 15.5, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>{ADMIN.name}</div>
-          <div style={{ fontSize: 15.5, color: 'var(--navy-300)' }}>{ADMIN.role}</div>
+          <div style={{ fontSize: 15.5, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{admin.name}</div>
+          <div style={{ fontSize: 15.5, color: 'var(--navy-300)' }}>{admin.role}</div>
         </div>
       )}
     </div>
@@ -245,16 +246,16 @@ export default function AdminLayout() {
 
           <div ref={menuRef} style={{ position: 'relative' }}>
             <button onClick={() => setMenuOpen((o) => !o)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isMobile ? 6 : '6px 10px 6px 6px', borderRadius: 999, background: '#F4EAE5', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
-              <span style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--navy-800)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15 }}>{ADMIN.initials}</span>
-              {!isMobile && <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>{ADMIN.shortName}</span>}
+              <span style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--navy-800)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15 }}>{admin.initials}</span>
+              {!isMobile && <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>{admin.shortName}</span>}
             </button>
             {menuOpen && (
               <div style={{ position: 'absolute', top: 52, right: 0, width: 230, background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, boxShadow: 'var(--shadow-lg)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10, zIndex: 30 }}>
                 <div>
-                  <div style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--text-heading)' }}>{ADMIN.name}</div>
-                  <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{ADMIN.email}</div>
+                  <div style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--text-heading)' }}>{admin.name}</div>
+                  <div style={{ fontSize: 14, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{admin.email}</div>
                 </div>
-                <span style={{ alignSelf: 'flex-start', fontSize: 12.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.05em', color: '#fff', background: 'var(--navy-800)', padding: '4px 10px', borderRadius: 999 }}>{ADMIN.role}</span>
+                <span style={{ alignSelf: 'flex-start', fontSize: 12.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.05em', color: '#fff', background: 'var(--navy-800)', padding: '4px 10px', borderRadius: 999 }}>{admin.role}</span>
                 <button onClick={signOut} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 700, color: 'var(--error-600)', background: 'var(--error-50)', border: 'none', borderRadius: 10, padding: '10px 12px', cursor: 'pointer' }}>Sign out</button>
               </div>
             )}

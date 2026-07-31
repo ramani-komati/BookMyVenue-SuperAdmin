@@ -57,6 +57,10 @@ export default function SettingsPage() {
   const [newAmenity, setNewAmenity] = useState('')
   const [newBannerTitle, setNewBannerTitle] = useState('')
   const [newBannerText, setNewBannerText] = useState('')
+  const [newBannerType, setNewBannerType] = useState('none') // none | percent | flat
+  const [newBannerValue, setNewBannerValue] = useState('')
+  const [newBannerFrom, setNewBannerFrom] = useState('')
+  const [newBannerTo, setNewBannerTo] = useState('')
 
   const addChip = (value, key, clear) => {
     const v = value.trim()
@@ -71,22 +75,51 @@ export default function SettingsPage() {
   }
 
   const addBanner = () => {
-    if (!newBannerTitle.trim()) return
+    const title = newBannerTitle.trim()
+    if (!title) return showToast('Banner title is required')
+    const value = Number(newBannerValue)
+    if (newBannerType !== 'none') {
+      if (newBannerValue === '' || Number.isNaN(value) || value <= 0) {
+        return showToast(newBannerType === 'percent' ? 'Enter the % discount for this offer' : 'Enter the ₹ discount for this offer')
+      }
+      if (newBannerType === 'percent' && value > 100) return showToast('Percent discount can’t exceed 100')
+    }
+    if (newBannerFrom && newBannerTo && newBannerFrom > newBannerTo) {
+      return showToast('"Valid from" must be on or before "Valid to"')
+    }
     markSettings({
-      banners: [...settings.banners, { id: Date.now(), title: newBannerTitle.trim(), text: newBannerText.trim() || '—' }],
+      banners: [...settings.banners, {
+        id: Date.now(),
+        title,
+        text: newBannerText.trim(),
+        type: newBannerType, // 'none' | 'percent' | 'flat'
+        value: newBannerType === 'none' ? 0 : value,
+        from: newBannerFrom || '',
+        to: newBannerTo || '',
+      }],
     })
     setNewBannerTitle('')
     setNewBannerText('')
+    setNewBannerType('none')
+    setNewBannerValue('')
+    setNewBannerFrom('')
+    setNewBannerTo('')
+  }
+
+  // "20% OFF · 1 Aug → 15 Aug" summary line for a saved banner.
+  const bannerSummary = (bn) => {
+    const d = (iso) => (iso ? new Date(iso + 'T00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '')
+    const bits = []
+    if (bn.type === 'percent' && bn.value) bits.push(bn.value + '% OFF')
+    if (bn.type === 'flat' && bn.value) bits.push('₹' + bn.value + ' OFF')
+    if (bn.from || bn.to) bits.push((d(bn.from) || 'now') + ' → ' + (d(bn.to) || 'no end date'))
+    return bits.join(' · ')
   }
 
   const save = () => {
     const fee = Number(settings.fee)
-    const commission = Number(settings.commission)
     if (settings.fee === '' || Number.isNaN(fee) || fee < 0) {
       return showToast('Platform fee must be ₹0 or more')
-    }
-    if (settings.commission === '' || Number.isNaN(commission) || commission < 0 || commission > 100) {
-      return showToast('Commission must be between 0 and 100%')
     }
     if (!settings.feeDate) {
       return showToast('Pick an effective-from date for the fee')
@@ -103,9 +136,10 @@ export default function SettingsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1100 }}>
-      {/* Fees & commission */}
+      {/* Booking fee — the platform's ONLY charge: a flat ₹ fee added to each
+          online booking. There is no percentage commission. */}
       <div className="card" style={{ padding: cardPad, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={sectionTitle}>Fees &amp; commission</div>
+        <div style={sectionTitle}>Booking fee</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(220px,100%),1fr))', gap: 14 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--text-heading)' }}>Platform fee (₹ per booking)</label>
@@ -114,10 +148,6 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--text-heading)' }}>Effective from</label>
             <input className="bmva" type="date" value={settings.feeDate} onChange={(e) => markSettings({ feeDate: e.target.value })} style={inputStyle} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--text-heading)' }}>Commission (%)</label>
-            <input className="bmva" type="number" min="0" max="100" value={settings.commission} onChange={(e) => markSettings({ commission: e.target.value })} style={inputStyle} />
           </div>
         </div>
       </div>
@@ -154,7 +184,10 @@ export default function SettingsPage() {
             </span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>{bn.title}</div>
-              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{bn.text}</div>
+              {bn.text && <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{bn.text}</div>}
+              {bannerSummary(bn) && (
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--red-600)' }}>{bannerSummary(bn)}</div>
+              )}
             </div>
             <button
               onClick={() => markSettings({ banners: settings.banners.filter((x) => x.id !== bn.id) })}
@@ -164,15 +197,45 @@ export default function SettingsPage() {
             </button>
           </div>
         ))}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(200px,100%),1fr))', gap: 8, alignItems: 'end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(200px,100%),1fr))', gap: 10 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>Banner title</label>
-            <input className="bmva" type="text" placeholder="e.g. Weekend turf offer" value={newBannerTitle} onChange={(e) => setNewBannerTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addBanner()} style={{ ...inputStyle, minHeight: 42 }} />
+            <input className="bmva" type="text" placeholder="e.g. Weekend turf offer" value={newBannerTitle} onChange={(e) => setNewBannerTitle(e.target.value)} style={{ ...inputStyle, minHeight: 42 }} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>Toast text (shown under the banner)</label>
-            <input className="bmva" type="text" placeholder="e.g. 15% off till Sunday" value={newBannerText} onChange={(e) => setNewBannerText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addBanner()} style={{ ...inputStyle, minHeight: 42 }} />
+            <label style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>Details (shown under the title)</label>
+            <input className="bmva" type="text" placeholder="e.g. On all box cricket turfs" value={newBannerText} onChange={(e) => setNewBannerText(e.target.value)} style={{ ...inputStyle, minHeight: 42 }} />
           </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>Discount type</label>
+            <select className="bmva" value={newBannerType} onChange={(e) => setNewBannerType(e.target.value)} style={{ ...inputStyle, minHeight: 42, cursor: 'pointer' }}>
+              <option value="none">No discount (announcement)</option>
+              <option value="percent">% off</option>
+              <option value="flat">₹ off</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 15, fontWeight: 600, color: newBannerType === 'none' ? 'var(--text-muted)' : 'var(--text-heading)' }}>
+              {newBannerType === 'flat' ? 'Discount (₹)' : 'Discount (%)'}
+            </label>
+            <input
+              className="bmva" type="number" min="1" max={newBannerType === 'percent' ? 100 : undefined}
+              placeholder={newBannerType === 'flat' ? 'e.g. 100' : 'e.g. 15'}
+              value={newBannerValue} onChange={(e) => setNewBannerValue(e.target.value)}
+              disabled={newBannerType === 'none'}
+              style={{ ...inputStyle, minHeight: 42, opacity: newBannerType === 'none' ? 0.5 : 1 }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>Valid from</label>
+            <input className="bmva" type="date" value={newBannerFrom} onChange={(e) => setNewBannerFrom(e.target.value)} style={{ ...inputStyle, minHeight: 42 }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>Valid to</label>
+            <input className="bmva" type="date" value={newBannerTo} onChange={(e) => setNewBannerTo(e.target.value)} style={{ ...inputStyle, minHeight: 42 }} />
+          </div>
+        </div>
+        <div>
           <Button variant="navy" size="sm" onClick={addBanner}>Add banner</Button>
         </div>
       </div>

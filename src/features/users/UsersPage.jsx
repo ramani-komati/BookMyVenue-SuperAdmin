@@ -1,6 +1,6 @@
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
-import { fmt, initials } from '../../data/mockData.js'
+import { fmt, initials, statusMeta } from '../../utils/format.js'
 import Badge from '../../components/ui/Badge.jsx'
 
 const USER_META = { active: ['success', 'Active'], blocked: ['error', 'Blocked'] }
@@ -12,9 +12,18 @@ export default function UsersPage() {
   const { width } = useViewport()
   const compact = width < 768
 
+  // Received-count — makes a short backend list visible at a glance (the page
+  // renders EVERY user the bootstrap returns; there is no client-side filter).
+  const countLine = (
+    <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-muted)' }}>
+      {users.length === 0 ? 'No users yet.' : `${users.length} user${users.length === 1 ? '' : 's'}`}
+    </div>
+  )
+
   if (compact) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {countLine}
         {users.map((u) => (
           <div key={u.id} onClick={() => openDrawer('user', u.id)} className="card hover-wash" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -23,12 +32,12 @@ export default function UsersPage() {
                 <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)' }}>{u.name}</div>
                 <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{u.phone}</div>
               </div>
-              <Badge status={USER_META[u.status][0]} size="sm">{USER_META[u.status][1]}</Badge>
+              <Badge status={statusMeta(USER_META, u.status)[0]} size="sm">{statusMeta(USER_META, u.status)[1]}</Badge>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 14.5 }}>
               <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{u.bookings} booking{u.bookings === 1 ? '' : 's'}</span>
               <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(u.spentNum)} spent</span>
-              <span style={{ color: 'var(--text-muted)' }}>active {u.lastActive.toLowerCase()}</span>
+              <span style={{ color: 'var(--text-muted)' }}>active {String(u.lastActive || '—').toLowerCase()}</span>
             </div>
           </div>
         ))}
@@ -38,6 +47,7 @@ export default function UsersPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {countLine}
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
           <div>Customer</div><div>Phone</div><div>Bookings</div><div>Total spent</div><div>Last active</div><div>Status</div>
@@ -57,7 +67,7 @@ export default function UsersPage() {
             <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{u.bookings}</div>
             <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(u.spentNum)}</div>
             <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{u.lastActive}</div>
-            <div><Badge status={USER_META[u.status][0]} size="sm">{USER_META[u.status][1]}</Badge></div>
+            <div><Badge status={statusMeta(USER_META, u.status)[0]} size="sm">{statusMeta(USER_META, u.status)[1]}</Badge></div>
           </div>
         ))}
       </div>

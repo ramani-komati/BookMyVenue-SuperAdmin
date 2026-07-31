@@ -1,12 +1,11 @@
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
-import { fmt, initials } from '../../data/mockData.js'
+import { fmt, initials, statusMeta } from '../../utils/format.js'
 import Badge from '../../components/ui/Badge.jsx'
 
-const KYC_META = { verified: ['success', 'Verified'], pending: ['warning', 'Pending'], rejected: ['error', 'Rejected'] }
 const ACC_META = { active: ['success', 'Active'], suspended: ['error', 'Suspended'] }
 
-const GRID = { display: 'grid', gridTemplateColumns: '1.6fr 1.1fr 1.4fr 90px 120px 110px 130px 115px', minWidth: 1100, gap: 10 }
+const GRID = { display: 'grid', gridTemplateColumns: '1.6fr 1.1fr 1.4fr 90px 120px 110px 115px', minWidth: 980, gap: 10 }
 
 export default function VendorsPage() {
   const { vendors, openDrawer } = useAdmin()
@@ -30,8 +29,7 @@ export default function VendorsPage() {
               <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(p.earningsNum)}</span>
               <span style={{ color: 'var(--text-muted)' }}>since {p.joined}</span>
               <span style={{ flex: 1 }} />
-              <Badge status={KYC_META[p.kyc][0]} size="sm">{'KYC ' + KYC_META[p.kyc][1]}</Badge>
-              <Badge status={ACC_META[p.acc][0]} size="sm">{ACC_META[p.acc][1]}</Badge>
+              <Badge status={statusMeta(ACC_META, p.acc)[0]} size="sm">{statusMeta(ACC_META, p.acc)[1]}</Badge>
             </div>
           </div>
         ))}
@@ -43,7 +41,7 @@ export default function VendorsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-          <div>Vendor</div><div>Phone</div><div>Email</div><div>Venues</div><div>Earnings</div><div>Joined</div><div>KYC</div><div>Account</div>
+          <div>Vendor</div><div>Phone</div><div>Email</div><div>Venues</div><div>Earnings</div><div>Joined</div><div>Account</div>
         </div>
         {vendors.map((p) => (
           <div
@@ -61,8 +59,7 @@ export default function VendorsPage() {
             <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{p.venues}</div>
             <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(p.earningsNum)}</div>
             <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{p.joined}</div>
-            <div><Badge status={KYC_META[p.kyc][0]} size="sm">{KYC_META[p.kyc][1]}</Badge></div>
-            <div><Badge status={ACC_META[p.acc][0]} size="sm">{ACC_META[p.acc][1]}</Badge></div>
+            <div><Badge status={statusMeta(ACC_META, p.acc)[0]} size="sm">{statusMeta(ACC_META, p.acc)[1]}</Badge></div>
           </div>
         ))}
       </div>

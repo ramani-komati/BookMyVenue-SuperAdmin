@@ -2,3 +2,13 @@ node_modules
 dist
 dev.log
 *.local
+
+# Environment files (commit only .env.example)
+.env
+
+# Local tooling / caches
+.vite/
+
+# OS cruft
+Thumbs.db
+.DS_Store
