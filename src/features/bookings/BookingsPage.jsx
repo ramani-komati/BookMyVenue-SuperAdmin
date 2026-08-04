@@ -29,6 +29,11 @@ export default function BookingsPage() {
   // Per-row: the booking's own frozen fee (what was actually charged) wins;
   // the current platform fee is only the fallback for older records.
   const rowFee = (b) => '₹' + (b.fee != null && Number.isFinite(Number(b.fee)) ? Number(b.fee) : Number(settings?.fee) || 20)
+  // Friendly payment-method label. "venue" = customer pays the FULL amount at
+  // the venue (its platform fee is recovered from the vendor's weekly payout).
+  const METHOD_LABELS = { upi: 'UPI', card: 'Card', netbanking: 'Net banking', venue: 'Pay at venue', 'walk-in': 'Walk-in' }
+  const methodLabel = (m) => METHOD_LABELS[String(m || '').toLowerCase()] || m || '—'
+  const atVenue = (b) => String(b.method || '').toLowerCase() === 'venue'
   const { width } = useViewport()
   const compact = width < 768
 
@@ -63,7 +68,7 @@ export default function BookingsPage() {
 
   const refund = (b) => openModal({
     title: 'Refund ' + bookingRef(b.id) + '?',
-    body: b.customer + ' paid ' + fmt(b.amountNum) + ' by ' + b.method + '. The refund goes back the same way in 5–7 days.',
+    body: b.customer + ' paid ' + fmt(b.amountNum) + ' by ' + b.method + '. The refund goes back the same way in 5–7 days. Note: if this booking’s week already has a payout row, that payout does NOT auto-adjust — settle the difference with the vendor manually.',
     confirmLabel: 'Issue refund', danger: true, needsReason: true,
     amount: String(b.amountNum), maxAmount: b.amountNum,
     onConfirm: (reason, amount) => {
@@ -125,7 +130,7 @@ export default function BookingsPage() {
                   <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{b.customer}{b.phone ? ` · ${b.phone}` : ''} · {b.slot}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15 }}>
                     <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
-                    <span style={{ color: 'var(--text-muted)' }}>{b.method}</span>
+                    <span style={{ color: atVenue(b) ? 'var(--warning-600)' : 'var(--text-muted)', fontWeight: atVenue(b) ? 700 : 400 }}>{methodLabel(b.method)}</span>
                     <span style={{ flex: 1 }} />
                     <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-muted)' }}>{expanded ? 'Hide bill ▲' : 'View bill ▼'}</span>
                   </div>
@@ -140,6 +145,11 @@ export default function BookingsPage() {
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>Total</span>
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
                     </div>
+                    {atVenue(b) && (
+                      <div style={{ fontSize: 13.5, color: 'var(--warning-600)', fontWeight: 700 }}>
+                        Paid at the venue — the {rowFee(b)} platform fee is deducted from the vendor&apos;s weekly payout.
+                      </div>
+                    )}
                     {canRefund && (
                       <Button variant="secondary" size="sm" block onClick={() => refund(b)}>Issue refund</Button>
                     )}
@@ -182,7 +192,7 @@ export default function BookingsPage() {
                 </div>
                 <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{b.slot}</div>
                 <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</div>
-                <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{b.method}</div>
+                <div style={{ fontSize: 15, color: atVenue(b) ? 'var(--warning-600)' : 'var(--text-muted)', fontWeight: atVenue(b) ? 700 : 400 }}>{methodLabel(b.method)}</div>
                 <div><Badge status={badge} size="sm">{label}</Badge></div>
               </div>
 
@@ -197,6 +207,11 @@ export default function BookingsPage() {
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>Total</span>
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
                     </div>
+                    {atVenue(b) && (
+                      <div style={{ fontSize: 13.5, color: 'var(--warning-600)', fontWeight: 700 }}>
+                        Paid at the venue — the {rowFee(b)} platform fee is deducted from the vendor&apos;s weekly payout.
+                      </div>
+                    )}
                   </div>
                   {canRefund && (
                     <Button variant="secondary" size="sm" onClick={() => refund(b)}>Issue refund</Button>

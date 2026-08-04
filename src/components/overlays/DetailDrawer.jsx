@@ -181,21 +181,50 @@ export default function DetailDrawer() {
         dangerLabel: p.acc === 'active' ? 'Suspend account' : 'Reactivate account',
         dangerAction: () => {
           if (p.acc === 'active') {
+            // A vendor with ACTIVE (paid, not-yet-completed) bookings on any
+            // of their venues can't be suspended — those customers hold
+            // confirmed slots. Refund/complete them first (Refunds panel).
+            const isTheirs = (b) => {
+              const n = String(b.venue || '')
+              return theirVenues.some((v) => n === v.name || n.startsWith(v.name + ' — '))
+            }
+            const activeBookings = bookings.filter((b) => b.status === 'confirmed' && isTheirs(b))
+            if (activeBookings.length > 0) {
+              showToast(
+                'Can’t suspend ' + p.name + ' — ' + activeBookings.length +
+                ' active booking' + (activeBookings.length === 1 ? '' : 's') +
+                ' on their venues. Refund or complete them first.',
+              )
+              return
+            }
+            const liveVenues = theirVenues.filter((v) => v.status === 'live')
             openModal({
               title: 'Suspend ' + p.name + '?',
-              body: 'All their venues stop taking bookings and payouts are held. They will be notified.',
+              body:
+                (liveVenues.length
+                  ? 'Their ' + liveVenues.length + ' live venue' + (liveVenues.length === 1 ? ' is' : 's are') + ' hidden from customers immediately. '
+                  : '') + 'Payouts are held. They will be notified.',
               confirmLabel: 'Suspend', danger: true, needsReason: true,
               onConfirm: (reason) => {
                 updateVendor(p.id, { acc: 'suspended' })
+                // Cascade: every live venue goes off the public site with them.
+                liveVenues.forEach((v) => updateVenue(v.id, { status: 'paused' }))
                 closeDrawer()
-                logAudit('Suspended vendor', p.name, 'reason: ' + reason)
-                showToast(p.name + ' suspended')
+                logAudit(
+                  'Suspended vendor', p.name,
+                  'reason: ' + reason + (liveVenues.length ? ' · ' + liveVenues.length + ' venue(s) paused' : ''),
+                )
+                showToast(p.name + ' suspended' + (liveVenues.length ? ' · ' + liveVenues.length + ' venue(s) hidden' : ''))
               },
             })
           } else {
+            const pausedCount = theirVenues.filter((v) => v.status === 'paused').length
             updateVendor(p.id, { acc: 'active' })
             logAudit('Reactivated vendor', p.name, 'suspended → active')
-            showToast(p.name + ' reactivated')
+            showToast(
+              p.name + ' reactivated' +
+              (pausedCount ? ' — their ' + pausedCount + ' venue(s) stay paused until you unpause them (Venues panel)' : ''),
+            )
           }
         },
       }

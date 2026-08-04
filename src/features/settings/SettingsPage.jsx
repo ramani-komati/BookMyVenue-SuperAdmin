@@ -59,6 +59,9 @@ export default function SettingsPage() {
   const [newBannerText, setNewBannerText] = useState('')
   const [newBannerType, setNewBannerType] = useState('none') // none | percent | flat
   const [newBannerValue, setNewBannerValue] = useState('')
+  const [newBannerCode, setNewBannerCode] = useState('') // promo code customers apply at checkout
+  const [newBannerMin, setNewBannerMin] = useState('') // min spend to be eligible (₹, optional)
+  const [newBannerMax, setNewBannerMax] = useState('') // cap on % discounts (₹, optional)
   const [newBannerFrom, setNewBannerFrom] = useState('')
   const [newBannerTo, setNewBannerTo] = useState('')
 
@@ -83,6 +86,13 @@ export default function SettingsPage() {
         return showToast(newBannerType === 'percent' ? 'Enter the % discount for this offer' : 'Enter the ₹ discount for this offer')
       }
       if (newBannerType === 'percent' && value > 100) return showToast('Percent discount can’t exceed 100')
+      // A discount without a code can't be applied at checkout — require one.
+      if (!newBannerCode.trim()) return showToast('Enter a promo code — customers apply it at checkout')
+      // One code = one discount: a duplicate would make checkout ambiguous.
+      const code = newBannerCode.trim().toUpperCase()
+      if (settings.banners.some((x) => String(x.code || '').toUpperCase() === code)) {
+        return showToast('Code ' + code + ' is already used by another banner')
+      }
     }
     if (newBannerFrom && newBannerTo && newBannerFrom > newBannerTo) {
       return showToast('"Valid from" must be on or before "Valid to"')
@@ -94,6 +104,13 @@ export default function SettingsPage() {
         text: newBannerText.trim(),
         type: newBannerType, // 'none' | 'percent' | 'flat'
         value: newBannerType === 'none' ? 0 : value,
+        // Promo code (discount banners only) — customers apply it at checkout;
+        // it also shows on the home hero as "Use code X".
+        code: newBannerType === 'none' ? '' : newBannerCode.trim().toUpperCase(),
+        // Guardrails (backend enforces them in the booking recompute): min
+        // spend to qualify, and a ₹ cap on percent discounts.
+        minAmount: newBannerType === 'none' ? 0 : Math.max(0, Number(newBannerMin) || 0),
+        maxDiscount: newBannerType === 'percent' ? Math.max(0, Number(newBannerMax) || 0) : 0,
         from: newBannerFrom || '',
         to: newBannerTo || '',
       }],
@@ -102,16 +119,39 @@ export default function SettingsPage() {
     setNewBannerText('')
     setNewBannerType('none')
     setNewBannerValue('')
+    setNewBannerCode('')
+    setNewBannerMin('')
+    setNewBannerMax('')
     setNewBannerFrom('')
     setNewBannerTo('')
+  }
+
+  // Load a banner into the add-form for editing (e.g. adding a promo code to
+  // a banner saved before the code field existed). The row is removed from
+  // the list; "Add banner" re-adds the updated version, then Save persists.
+  // Discard restores the original if the admin abandons the edit.
+  const editBanner = (bn) => {
+    setNewBannerTitle(bn.title || '')
+    setNewBannerText(bn.text || '')
+    setNewBannerType(bn.type || 'none')
+    setNewBannerValue(bn.value ? String(bn.value) : '')
+    setNewBannerCode(bn.code || '')
+    setNewBannerMin(Number(bn.minAmount) > 0 ? String(bn.minAmount) : '')
+    setNewBannerMax(Number(bn.maxDiscount) > 0 ? String(bn.maxDiscount) : '')
+    setNewBannerFrom(bn.from || '')
+    setNewBannerTo(bn.to || '')
+    markSettings({ banners: settings.banners.filter((x) => x.id !== bn.id) })
+    showToast('Editing "' + bn.title + '" — update the fields, press Add banner, then Save')
   }
 
   // "20% OFF · 1 Aug → 15 Aug" summary line for a saved banner.
   const bannerSummary = (bn) => {
     const d = (iso) => (iso ? new Date(iso + 'T00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '')
     const bits = []
-    if (bn.type === 'percent' && bn.value) bits.push(bn.value + '% OFF')
+    if (bn.type === 'percent' && bn.value) bits.push(bn.value + '% OFF' + (Number(bn.maxDiscount) > 0 ? ' up to ₹' + bn.maxDiscount : ''))
     if (bn.type === 'flat' && bn.value) bits.push('₹' + bn.value + ' OFF')
+    if (bn.code) bits.push('Code ' + bn.code)
+    if (Number(bn.minAmount) > 0) bits.push('Min ₹' + bn.minAmount)
     if (bn.from || bn.to) bits.push((d(bn.from) || 'now') + ' → ' + (d(bn.to) || 'no end date'))
     return bits.join(' · ')
   }
@@ -190,8 +230,14 @@ export default function SettingsPage() {
               )}
             </div>
             <button
+              onClick={() => editBanner(bn)}
+              style={{ fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 700, color: 'var(--navy-700)', background: 'none', border: 'none', cursor: 'pointer', flex: '0 0 auto' }}
+            >
+              Edit
+            </button>
+            <button
               onClick={() => markSettings({ banners: settings.banners.filter((x) => x.id !== bn.id) })}
-              style={{ fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 700, color: 'var(--error-600)', background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{ fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 700, color: 'var(--error-600)', background: 'none', border: 'none', cursor: 'pointer', flex: '0 0 auto' }}
             >
               Remove
             </button>
@@ -224,6 +270,35 @@ export default function SettingsPage() {
               value={newBannerValue} onChange={(e) => setNewBannerValue(e.target.value)}
               disabled={newBannerType === 'none'}
               style={{ ...inputStyle, minHeight: 42, opacity: newBannerType === 'none' ? 0.5 : 1 }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 15, fontWeight: 600, color: newBannerType === 'none' ? 'var(--text-muted)' : 'var(--text-heading)' }}>
+              {newBannerType === 'none' ? 'Promo code (needs a discount)' : 'Promo code'}
+            </label>
+            <input
+              className="bmva" type="text" placeholder="e.g. AUG15"
+              value={newBannerCode} onChange={(e) => setNewBannerCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+              disabled={newBannerType === 'none'}
+              style={{ ...inputStyle, minHeight: 42, opacity: newBannerType === 'none' ? 0.5 : 1, textTransform: 'uppercase' }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 15, fontWeight: 600, color: newBannerType === 'none' ? 'var(--text-muted)' : 'var(--text-heading)' }}>Min spend ₹ (optional)</label>
+            <input
+              className="bmva" type="number" min="0" placeholder="e.g. 500"
+              value={newBannerMin} onChange={(e) => setNewBannerMin(e.target.value)}
+              disabled={newBannerType === 'none'}
+              style={{ ...inputStyle, minHeight: 42, opacity: newBannerType === 'none' ? 0.5 : 1 }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 15, fontWeight: 600, color: newBannerType === 'percent' ? 'var(--text-heading)' : 'var(--text-muted)' }}>Max discount ₹ (% offers)</label>
+            <input
+              className="bmva" type="number" min="0" placeholder="e.g. 200"
+              value={newBannerMax} onChange={(e) => setNewBannerMax(e.target.value)}
+              disabled={newBannerType !== 'percent'}
+              style={{ ...inputStyle, minHeight: 42, opacity: newBannerType === 'percent' ? 1 : 0.5 }}
             />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

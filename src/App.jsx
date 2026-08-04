@@ -11,6 +11,7 @@ import VendorsPage from './features/vendors/VendorsPage.jsx'
 import UsersPage from './features/users/UsersPage.jsx'
 import BookingsPage from './features/bookings/BookingsPage.jsx'
 import PayoutsPage from './features/payouts/PayoutsPage.jsx'
+import RefundsPage from './features/refunds/RefundsPage.jsx'
 import ReviewsPage from './features/reviews/ReviewsPage.jsx'
 import SettingsPage from './features/settings/SettingsPage.jsx'
 import AuditPage from './features/audit/AuditPage.jsx'
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/users" element={<UsersPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/payouts" element={<PayoutsPage />} />
+          <Route path="/refunds" element={<RefundsPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/audit" element={<AuditPage />} />
