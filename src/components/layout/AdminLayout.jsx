@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { key: 'dashboard', path: '/', label: 'Dashboard', icon: 'layout-dashboard' },
   { key: 'approvals', path: '/approvals', label: 'Approvals', icon: 'check-circle', badge: true },
   { key: 'venues', path: '/venues', label: 'Venues', icon: 'building-2' },
+  { key: 'all-venues', path: '/all-venues', label: 'All venues', icon: 'archive' },
   { key: 'vendors', path: '/vendors', label: 'Vendors', icon: 'briefcase' },
   { key: 'users', path: '/users', label: 'Users', icon: 'users' },
   { key: 'bookings', path: '/bookings', label: 'Bookings', icon: 'calendar-check' },
@@ -24,7 +25,7 @@ const NAV_ITEMS = [
 ]
 
 const TITLES = {
-  '/': 'Dashboard', '/approvals': 'Venue approvals', '/venues': 'Venues', '/vendors': 'Vendors',
+  '/': 'Dashboard', '/approvals': 'Venue approvals', '/venues': 'Venues', '/all-venues': 'All venues', '/vendors': 'Vendors',
   '/users': 'Users', '/bookings': 'Bookings', '/payouts': 'Payouts', '/refunds': 'Refunds', '/reviews': 'Reviews moderation',
   '/settings': 'Platform settings', '/audit': 'Audit log',
 }

@@ -1,10 +1,11 @@
 import {
-  Bell, Briefcase, Building2, CalendarCheck, CheckCircle, ChevronsLeft, Clock,
+  Archive, Bell, Briefcase, Building2, CalendarCheck, CheckCircle, ChevronsLeft, Clock,
   FileText, Image, Inbox, IndianRupee, LayoutDashboard, Menu, Settings, Star,
   TrendingDown, TrendingUp, User, Users, Wallet, WifiOff, XCircle,
 } from 'lucide-react'
 
 const ICONS = {
+  'archive': Archive,
   'bell': Bell,
   'briefcase': Briefcase,
   'building-2': Building2,

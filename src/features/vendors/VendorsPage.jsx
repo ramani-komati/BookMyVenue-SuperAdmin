@@ -1,6 +1,7 @@
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
 import { fmt, initials, statusMeta } from '../../utils/format.js'
+import { vendorEarnings } from '../../utils/revenue.js'
 import Badge from '../../components/ui/Badge.jsx'
 
 const ACC_META = { active: ['success', 'Active'], suspended: ['error', 'Suspended'] }
@@ -8,9 +9,12 @@ const ACC_META = { active: ['success', 'Active'], suspended: ['error', 'Suspende
 const GRID = { display: 'grid', gridTemplateColumns: '1.6fr 1.1fr 1.4fr 90px 120px 110px 115px', minWidth: 980, gap: 10 }
 
 export default function VendorsPage() {
-  const { vendors, openDrawer } = useAdmin()
+  const { vendors, venues, bookings, settings, openDrawer } = useAdmin()
   const { width } = useViewport()
   const compact = width < 768
+  // The vendor's actual money: Σ (amount − booking-time frozen platform fee)
+  // across their venues' kept bookings — not gross turnover.
+  const earningsOf = (p) => fmt(vendorEarnings(p.name, venues, bookings, Number(settings?.fee) || 20))
 
   if (compact) {
     return (
@@ -26,7 +30,7 @@ export default function VendorsPage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 14.5 }}>
               <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{p.venues} venue{p.venues === 1 ? '' : 's'}</span>
-              <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(p.earningsNum)}</span>
+              <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{earningsOf(p)}</span>
               <span style={{ color: 'var(--text-muted)' }}>since {p.joined}</span>
               <span style={{ flex: 1 }} />
               <Badge status={statusMeta(ACC_META, p.acc)[0]} size="sm">{statusMeta(ACC_META, p.acc)[1]}</Badge>
@@ -57,7 +61,7 @@ export default function VendorsPage() {
             <div style={{ fontSize: 16 }}>{p.phone}</div>
             <div style={{ fontSize: 15, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.email}</div>
             <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{p.venues}</div>
-            <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(p.earningsNum)}</div>
+            <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{earningsOf(p)}</div>
             <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{p.joined}</div>
             <div><Badge status={statusMeta(ACC_META, p.acc)[0]} size="sm">{statusMeta(ACC_META, p.acc)[1]}</Badge></div>
           </div>

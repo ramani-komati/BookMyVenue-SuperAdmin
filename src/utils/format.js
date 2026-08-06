@@ -30,6 +30,19 @@ export const placeOf = (v) => {
   return first || '—'
 }
 
+// Timestamp for a client-authored audit entry, matching the backend's
+// "05 Aug, 16:38" style so the two read consistently. Uses the admin's local
+// clock — the persisted entry then carries a REAL time instead of a literal
+// "Just now" that would otherwise freeze forever once reloaded.
+export const auditNow = () => {
+  const d = new Date()
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = d.toLocaleString('en-US', { month: 'short' })
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${day} ${month}, ${hh}:${mm}`
+}
+
 // Audit "admin" column: backend entries may carry the admin's raw email while
 // frontend entries carry a display name — normalise both to a readable name
 // ("ramani.komati@x.in" → "Ramani Komati"); empty → "Admin".

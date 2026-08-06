@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { adminApi } from '../services/adminApi.js'
+import { auditNow } from '../utils/format.js'
 
 // Empty settings shape shown until the real settings arrive with bootstrap.
 const BLANK_SETTINGS = { fee: '', feeDate: '', commission: '', categories: [], cities: [], amenities: [], banners: [] }
@@ -129,7 +130,7 @@ export function AdminProvider({ children }) {
   }, [authed, dataStatus, loadAll])
 
   const logAudit = useCallback((action, target, change) => {
-    const entry = { time: 'Just now', admin: admin.auditName, action, target, change }
+    const entry = { time: auditNow(), admin: admin.auditName, action, target, change }
     setAudit((prev) => [entry, ...prev])
     sync(adminApi.appendAudit(entry))
   }, [sync, admin])

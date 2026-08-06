@@ -8,10 +8,26 @@
 // back as { "detail": "..." } and are surfaced with the HTTP status attached
 // so callers can branch on 401/403 (session expired → sign-in screen).
 
-// Default to the production backend so a build without env vars talks to the
-// real API out of the box (mirrors frontend/src/services/apiBase.js). Override
-// per environment with VITE_ADMIN_API_BASE (no trailing slash).
-const API_BASE = import.meta.env.VITE_ADMIN_API_BASE || 'https://bookmyvenues-backend.onrender.com/api/admin'
+// Talk to the real admin API. In DEV the base defaults to a RELATIVE
+// `/api/admin` so requests go through the Vite dev proxy (vite.config.js)
+// server-to-server — the backend's CORS allowlist covers only the production
+// domains, so a direct browser call from localhost is refused. Production
+// builds default to the absolute onrender URL. Override either with
+// VITE_ADMIN_API_BASE (no trailing slash) to point dev at a different backend.
+const API_BASE =
+  import.meta.env.VITE_ADMIN_API_BASE ||
+  (import.meta.env.DEV ? '/api/admin' : 'https://bookmyvenues-backend.onrender.com/api/admin')
+
+// Wake the backend the moment the panel opens — Render's free tier sleeps
+// after idle and a cold start takes ~30s, which otherwise lands entirely on
+// the admin's first action (login). Fired from main.jsx; by the time
+// credentials + OTP are typed the server is warm and /bootstrap is quick.
+// `no-cors` because the public health route sits outside the admin CORS
+// allowlist — the request still reaches (and wakes) the server; the opaque
+// response is never read.
+export function wakeBackend() {
+  fetch(API_BASE.replace(/\/admin$/, '') + '/v1/health', { mode: 'no-cors' }).catch(() => {})
+}
 
 async function request(path, { method = 'GET', body } = {}) {
   const res = await fetch(API_BASE + path, {

@@ -2,12 +2,13 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import { bookingRef, fmt, initials, placeOf, statusMeta } from '../../utils/format.js'
+import { vendorEarnings, venueVendorRevenue } from '../../utils/revenue.js'
 import Badge from '../ui/Badge.jsx'
 import Button from '../ui/Button.jsx'
 import useViewport from '../../hooks/useViewport.js'
 
 const USER_META = { active: ['success', 'Active'], blocked: ['error', 'Blocked'] }
-const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'] }
+const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'], deleted: ['neutral', 'Deleted'] }
 
 const sectionTitle = { fontSize: 13.5, fontWeight: 800, color: 'var(--text-heading)', textTransform: 'uppercase', letterSpacing: '.04em' }
 
@@ -32,8 +33,10 @@ function DetailRow({ label, value }) {
 export default function DetailDrawer() {
   const {
     drawer, closeDrawer, openDrawer, vendors, users, venues, bookings,
-    updateVendor, updateUser, updateVenue, openModal, logAudit, showToast,
+    updateVendor, updateUser, updateVenue, openModal, logAudit, showToast, settings,
   } = useAdmin()
+  // Fallback fee for legacy rows without a frozen per-booking fee.
+  const feeFallback = Number(settings?.fee) || 20
   const { isMobile } = useViewport()
   const navigate = useNavigate()
 
@@ -110,7 +113,9 @@ export default function DetailDrawer() {
           <StatTile label="Price / hr" value={v.price} />
           <StatTile label="Rating" value={'★ ' + v.rating} />
           <StatTile label="Bookings" value={v.bookings} />
-          <StatTile label="Total revenue" value={fmt(v.revenueNum)} />
+          {/* The VENDOR's money, not gross turnover: each booking's amount
+              minus its own booking-time frozen platform fee (₹20/₹10/…). */}
+          <StatTile label="Vendor revenue" value={fmt(venueVendorRevenue(v.name, bookings, feeFallback))} />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -145,14 +150,21 @@ export default function DetailDrawer() {
           </div>
         </div>
 
-        <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <Button variant={v.status === 'paused' ? 'secondary' : 'danger'} size="sm" block onClick={togglePause}>
-            {v.status === 'paused' ? 'Unpause venue' : 'Pause venue'}
-          </Button>
-          <Button variant="navy" size="sm" block onClick={toggleFeature}>
-            {v.featured ? 'Remove from homepage' : 'Feature on homepage'}
-          </Button>
-        </div>
+        {/* A deleted venue is history, not an operable listing — no actions. */}
+        {v.status === 'deleted' ? (
+          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, fontSize: 15, fontWeight: 600, color: 'var(--text-muted)' }}>
+            This venue was deleted by its vendor and is no longer on the platform. Its bookings and revenue history are kept for records.
+          </div>
+        ) : (
+          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Button variant={v.status === 'paused' ? 'secondary' : 'danger'} size="sm" block onClick={togglePause}>
+              {v.status === 'paused' ? 'Unpause venue' : 'Pause venue'}
+            </Button>
+            <Button variant="navy" size="sm" block onClick={toggleFeature}>
+              {v.featured ? 'Remove from homepage' : 'Feature on homepage'}
+            </Button>
+          </div>
+        )}
       </>
     )
   } else {
@@ -168,7 +180,8 @@ export default function DetailDrawer() {
         sub: p.phone + ' · ' + p.email,
         stats: [
           { label: 'Venues', value: p.venues },
-          { label: 'Total earnings', value: fmt(p.earningsNum) },
+          // Net of each booking's frozen platform fee — the vendor's money.
+          { label: 'Total earnings', value: fmt(vendorEarnings(p.name, venues, bookings, feeFallback)) },
           { label: 'Joined', value: p.joined },
         ],
         items: theirVenues.map((v) => ({

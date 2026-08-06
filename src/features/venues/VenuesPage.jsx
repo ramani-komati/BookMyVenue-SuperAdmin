@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
 import { placeOf } from '../../utils/format.js'
@@ -9,13 +10,21 @@ const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], pend
 // Unknown statuses from the API must never crash the page — show them as-is.
 const venueMeta = (status) => VENUE_META[status] || ['draft', status || 'Unknown']
 
+// This panel manages the venues currently ON the platform: live ones plus
+// paused ones (paused is a live listing temporarily off — and the Unpause
+// action lives here, so those rows must stay visible). Everything else —
+// pending, rejected, drafts, deleted — lives in the All venues registry.
+const isOnPlatform = (v) => v.status === 'live' || v.status === 'paused'
+
 const GRID = { display: 'grid', gridTemplateColumns: '34px 2.5fr 1.2fr 140px 100px 100px 80px 100px 120px 175px', minWidth: 1280, gap: 10 }
 
 export default function VenuesPage() {
   const { venues, setVenues, updateVenue, openModal, logAudit, showToast, openDrawer } = useAdmin()
+  const navigate = useNavigate()
   const { width } = useViewport()
   const compact = width < 768
   const [selectedIds, setSelectedIds] = useState([])
+  const live = venues.filter(isOnPlatform)
 
   const toggleSel = (id) =>
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -59,10 +68,18 @@ export default function VenuesPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Received-count — the page renders EVERY venue the bootstrap returns
-          (no client-side filter), so a short list means a short API response. */}
-      <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-muted)' }}>
-        {venues.length === 0 ? 'No venues yet.' : `${venues.length} venue${venues.length === 1 ? '' : 's'}`}
+      {/* Count of venues currently on the platform (live + paused); the full
+          registry — every status incl. deleted — is the All venues panel. */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-muted)' }}>
+          {live.length === 0 ? 'No live venues yet.' : `${live.length} live venue${live.length === 1 ? '' : 's'}`}
+        </div>
+        <button
+          onClick={() => navigate('/all-venues')}
+          style={{ fontFamily: 'var(--font-body)', fontSize: 14.5, fontWeight: 700, color: 'var(--navy-600)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          All venues incl. deleted →
+        </button>
       </div>
       {selectedIds.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'var(--navy-800)', color: '#fff', borderRadius: 12, padding: '10px 16px' }}>
@@ -75,7 +92,7 @@ export default function VenuesPage() {
 
       {compact ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {venues.map((v) => {
+          {live.map((v) => {
             const [badge, label] = venueMeta(v.status)
             const selected = selectedIds.includes(v.id)
             return (
@@ -124,7 +141,7 @@ export default function VenuesPage() {
           <div /><div>Venue</div><div>Vendor</div><div>Category</div><div>City</div><div>Price/hr</div><div>Rating</div><div>Bookings</div><div>Status</div><div>Actions</div>
         </div>
 
-        {venues.map((v) => {
+        {live.map((v) => {
           const [badge, label] = venueMeta(v.status)
           const selected = selectedIds.includes(v.id)
           return (

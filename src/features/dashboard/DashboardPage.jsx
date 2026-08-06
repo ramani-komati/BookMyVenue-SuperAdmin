@@ -79,7 +79,8 @@ export default function DashboardPage() {
         <StatCard label="Total bookings" value={bookings.length.toLocaleString('en-IN')} icon="calendar-check" tone="accent" onClick={() => navigate('/bookings')} />
         <StatCard label="Gross booking value" value={fmt(grossValue).slice(1)} prefix="₹" icon="indian-rupee" tone="navy" onClick={() => navigate('/payouts')} />
         <StatCard label="Pending approvals" value={pendingCount} icon="clock" tone="warning" trendLabel={oldestWait} onClick={() => navigate('/approvals')} />
-        <StatCard label="Live venues" value={liveVenues} icon="building-2" tone="success" trendLabel={`${venues.length} total`} onClick={() => navigate('/venues')} />
+        {/* venues[] now includes soft-deleted rows — say what the total counts. */}
+        <StatCard label="Live venues" value={liveVenues} icon="building-2" tone="success" trendLabel={`${venues.length} ever listed`} onClick={() => navigate('/venues')} />
         <StatCard label="Registered users" value={users.length.toLocaleString('en-IN')} icon="users" tone="accent" onClick={() => navigate('/users')} />
       </div>
 
@@ -165,8 +166,11 @@ export default function DashboardPage() {
               <span style={{ width: 36, height: 36, borderRadius: 9, background: '#F4EAE5', color: 'var(--navy-500)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>
                 <Icon name="clock" size={17} />
               </span>
-              <span style={{ flex: 1, fontSize: 16, color: 'var(--text-body)' }}>{a.action} — {resolveTarget(a.target, collections)}</span>
-              <span style={{ fontSize: 14.5, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{a.time}</span>
+              {/* minWidth:0 lets a long line wrap instead of growing and
+                  pushing the time off the card's right edge; the time stays a
+                  fixed, non-shrinking column so it always shows. */}
+              <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', fontSize: 16, color: 'var(--text-body)' }}>{a.action} — {resolveTarget(a.target, collections)}</span>
+              <span style={{ fontSize: 14.5, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap', flex: '0 0 auto' }}>{a.time}</span>
             </button>
           ))}
         </div>

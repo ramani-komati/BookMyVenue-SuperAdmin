@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
 import { fmt, statusMeta } from '../../utils/format.js'
+import { keepsMoney, platformFeeOf } from '../../utils/revenue.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 import StatCard from '../../components/ui/StatCard.jsx'
@@ -18,9 +19,9 @@ export default function PayoutsPage() {
   const location = useLocation()
   const [tab, setTab] = useState(location.state?.tab || 'Pending')
 
-  // The platform's ONLY charge is the flat booking fee (₹20 by default,
-  // configurable in Platform Settings) added to each ONLINE booking. There is
-  // no percentage commission — vendors receive their full booking amount.
+  // The platform's ONLY charge is the flat booking fee added to each online
+  // booking. The fee is FROZEN per booking at booking time — the current
+  // settings fee is only the fallback for legacy rows without one.
   const bookingFee = Number(settings?.fee) || 20
 
   const openVendor = (name) => {
@@ -31,11 +32,17 @@ export default function PayoutsPage() {
   const filtered = payoutsList.filter((p) => p.status === tab.toLowerCase())
   const duePayouts = payoutsList.filter((p) => p.status === 'pending')
   const dueTotal = duePayouts.reduce((a, p) => a + (Number(p.grossNum) || 0), 0)
-  // Platform earnings = fee × online bookings. Walk-ins carry no fee (the
-  // vendor records them at the venue; no online payment happens).
-  const isWalkIn = (b) => b.walkIn === true || String(b.method || '').toLowerCase() === 'walk-in'
-  const onlineBookings = bookings.filter((b) => !isWalkIn(b))
-  const platformEarnings = bookingFee * onlineBookings.length
+  // Platform earnings = Σ each booking's BOOKING-TIME frozen fee (a ₹20-era
+  // row adds 20, a ₹10-era row adds 10 — NOT today's fee × count). Walk-ins
+  // carry no fee, and cancelled/refunded/refund-pending rows return the fee
+  // with the money, so only kept fee-bearing rows count. Platform-funded promo
+  // discounts come out of the platform's side (payout made-whole rule), so a
+  // promo row nets fee − discountAmount (can go negative — a real loss-leader).
+  const feeBearing = bookings.filter((b) => keepsMoney(b) && platformFeeOf(b, bookingFee) > 0)
+  const platformEarnings = feeBearing.reduce((s, b) => {
+    const promo = b.offer?.source === 'platform' ? Number(b.discountAmount) || 0 : 0
+    return s + platformFeeOf(b, bookingFee) - promo
+  }, 0)
 
   const process = (p) => {
     updatePayout(p.id, { status: 'completed' })
@@ -54,7 +61,7 @@ export default function PayoutsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(260px,100%),340px))', gap: 14 }}>
         <StatCard label="Total pending payouts" prefix="₹" value={dueTotal.toLocaleString('en-IN')} icon="indian-rupee" tone="warning" trendLabel={duePayouts.length ? duePayouts.length + ' vendors waiting' : 'all settled'} />
-        <StatCard label="Platform earnings" prefix="₹" value={platformEarnings.toLocaleString('en-IN')} icon="wallet" tone="navy" trendLabel={`₹${bookingFee} fee × ${onlineBookings.length} online booking${onlineBookings.length === 1 ? '' : 's'}`} />
+        <StatCard label="Platform earnings" prefix="₹" value={platformEarnings.toLocaleString('en-IN')} icon="wallet" tone="navy" trendLabel={`${feeBearing.length} online booking${feeBearing.length === 1 ? '' : 's'} · each at its booking-time fee`} />
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
