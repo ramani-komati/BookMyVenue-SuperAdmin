@@ -10,10 +10,12 @@ const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], pend
 // Unknown statuses from the API must never crash the page — show them as-is.
 const venueMeta = (status) => VENUE_META[status] || ['draft', status || 'Unknown']
 
-// This panel shows ONLY live venues. Every other state — paused, pending,
-// rejected, drafts, deletion-requested, deleted — lives in the All venues
-// registry (filterable there), and deletion requests also have their own panel.
-const isLive = (v) => v.status === 'live'
+// Live venues = the ones actually LIVE and bookable. A deletion-requested
+// venue is still live/bookable (the request only removes it once a super-admin
+// APPROVES), so it stays here — with its "Deletion requested" badge — until
+// approval flips it to `deleted`. Paused/pending/rejected/drafts/deleted live
+// in the All venues registry.
+const isLive = (v) => v.status === 'live' || v.status === 'deletion_requested'
 
 const GRID = { display: 'grid', gridTemplateColumns: '34px 2.5fr 1.2fr 140px 100px 100px 80px 100px 120px 175px', minWidth: 1280, gap: 10 }
 

@@ -8,6 +8,7 @@ import DetailDrawer from '../overlays/DetailDrawer.jsx'
 import Toast from '../overlays/Toast.jsx'
 import DataErrorCard from '../DataErrorCard.jsx'
 import { adminApi } from '../../services/adminApi.js'
+import { lockBodyScroll, unlockBodyScroll } from '../../utils/scrollLock.js'
 
 const NAV_ITEMS = [
   { key: 'dashboard', path: '/', label: 'Dashboard', icon: 'layout-dashboard' },
@@ -86,16 +87,15 @@ export default function AdminLayout() {
     return () => clearTimeout(loadTimer.current)
   }, [basePath])
 
-  // Mobile nav drawer: Escape closes, body scroll locked while open
+  // Mobile nav drawer: Escape closes, body scroll locked while open (ref-counted)
   useEffect(() => {
     if (!navOpen) return
     const onKey = (e) => { if (e.key === 'Escape') setNavOpen(false) }
     document.addEventListener('keydown', onKey)
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prevOverflow
+      unlockBodyScroll()
     }
   }, [navOpen])
 

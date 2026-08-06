@@ -1,20 +1,21 @@
 import { useEffect } from 'react'
 import { useAdmin } from '../../context/AdminContext.jsx'
+import { lockBodyScroll, unlockBodyScroll } from '../../utils/scrollLock.js'
 import Button from '../ui/Button.jsx'
 
 export default function ConfirmModal() {
   const { modal, setModal, closeModal, showToast } = useAdmin()
 
-  // Escape closes; lock body scroll while open
+  // Escape closes; lock body scroll while open (ref-counted so nesting inside
+  // the drawer can't leave the page stuck at overflow:hidden).
   useEffect(() => {
     if (!modal) return
     const onKey = (e) => { if (e.key === 'Escape') closeModal() }
     document.addEventListener('keydown', onKey)
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prevOverflow
+      unlockBodyScroll()
     }
   }, [modal, closeModal])
 

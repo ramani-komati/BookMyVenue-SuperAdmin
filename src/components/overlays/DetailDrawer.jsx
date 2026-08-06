@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import { bookingRef, fmt, initials, placeOf, statusMeta } from '../../utils/format.js'
 import { vendorEarnings, venueVendorRevenue } from '../../utils/revenue.js'
+import { lockBodyScroll, unlockBodyScroll } from '../../utils/scrollLock.js'
 import Badge from '../ui/Badge.jsx'
 import Button from '../ui/Button.jsx'
 import useViewport from '../../hooks/useViewport.js'
@@ -40,16 +41,17 @@ export default function DetailDrawer() {
   const { isMobile } = useViewport()
   const navigate = useNavigate()
 
-  // Escape closes; lock body scroll while open
+  // Escape closes; lock body scroll while open (ref-counted so opening the
+  // confirm modal from here — or closing the drawer from a confirm — can't
+  // leave the page stuck at overflow:hidden).
   useEffect(() => {
     if (!drawer) return
     const onKey = (e) => { if (e.key === 'Escape') closeDrawer() }
     document.addEventListener('keydown', onKey)
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prevOverflow
+      unlockBodyScroll()
     }
   }, [drawer, closeDrawer])
 
