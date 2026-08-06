@@ -12,8 +12,9 @@ import { adminApi } from '../../services/adminApi.js'
 const NAV_ITEMS = [
   { key: 'dashboard', path: '/', label: 'Dashboard', icon: 'layout-dashboard' },
   { key: 'approvals', path: '/approvals', label: 'Approvals', icon: 'check-circle', badge: true },
-  { key: 'venues', path: '/venues', label: 'Venues', icon: 'building-2' },
+  { key: 'venues', path: '/venues', label: 'Live venues', icon: 'building-2' },
   { key: 'all-venues', path: '/all-venues', label: 'All venues', icon: 'archive' },
+  { key: 'deletion-requests', path: '/deletion-requests', label: 'Deletion requests', icon: 'inbox', badge: 'deletions' },
   { key: 'vendors', path: '/vendors', label: 'Vendors', icon: 'briefcase' },
   { key: 'users', path: '/users', label: 'Users', icon: 'users' },
   { key: 'bookings', path: '/bookings', label: 'Bookings', icon: 'calendar-check' },
@@ -25,8 +26,9 @@ const NAV_ITEMS = [
 ]
 
 const TITLES = {
-  '/': 'Dashboard', '/approvals': 'Venue approvals', '/venues': 'Venues', '/all-venues': 'All venues', '/vendors': 'Vendors',
+  '/': 'Dashboard', '/approvals': 'Venue approvals', '/venues': 'Live venues', '/all-venues': 'All venues', '/vendors': 'Vendors',
   '/users': 'Users', '/bookings': 'Bookings', '/payouts': 'Payouts', '/refunds': 'Refunds', '/reviews': 'Reviews moderation',
+  '/all-venues': 'All venues', '/deletion-requests': 'Deletion requests',
   '/settings': 'Platform settings', '/audit': 'Audit log',
 }
 
@@ -46,7 +48,7 @@ function LoadingSkeleton() {
 }
 
 export default function AdminLayout() {
-  const { authed, setAuthed, admin, pendingApprovals, approvals, dataStatus, retryLoad } = useAdmin()
+  const { authed, setAuthed, admin, pendingApprovals, approvals, venues, dataStatus, retryLoad } = useAdmin()
   const { isMobile, isNarrow: viewportNarrow } = useViewport()
   const location = useLocation()
   const navigate = useNavigate()
@@ -101,6 +103,7 @@ export default function AdminLayout() {
 
   const isNarrow = !isMobile && (collapsed || viewportNarrow)
   const pendingCount = pendingApprovals.length
+  const deletionCount = (venues || []).filter((v) => v.status === 'deletion_requested').length
 
   // Approval detail gets a contextual title. Ids are UUID strings from the
   // real API — match any non-slash segment and compare as strings.
@@ -120,6 +123,7 @@ export default function AdminLayout() {
 
   const navList = (compact) => NAV_ITEMS.map((it) => {
     const isActive = it.path === '/' ? location.pathname === '/' : basePath === it.path
+    const badgeCount = it.badge === 'deletions' ? deletionCount : it.badge ? pendingCount : 0
     return (
       <button
         key={it.key}
@@ -141,8 +145,8 @@ export default function AdminLayout() {
         {!compact && (
           <>
             <span style={{ flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden' }}>{it.label}</span>
-            {it.badge && pendingCount > 0 && (
-              <span style={{ background: 'var(--brand-accent)', color: '#fff', fontSize: 12.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999 }}>{pendingCount}</span>
+            {badgeCount > 0 && (
+              <span style={{ background: 'var(--brand-accent)', color: '#fff', fontSize: 12.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999 }}>{badgeCount}</span>
             )}
           </>
         )}

@@ -6,15 +6,14 @@ import { placeOf } from '../../utils/format.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 
-const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], pending: ['warning', 'Pending'], rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'] }
+const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], pending: ['warning', 'Pending'], rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'], deletion_requested: ['warning', 'Deletion requested'] }
 // Unknown statuses from the API must never crash the page — show them as-is.
 const venueMeta = (status) => VENUE_META[status] || ['draft', status || 'Unknown']
 
-// This panel manages the venues currently ON the platform: live ones plus
-// paused ones (paused is a live listing temporarily off — and the Unpause
-// action lives here, so those rows must stay visible). Everything else —
-// pending, rejected, drafts, deleted — lives in the All venues registry.
-const isOnPlatform = (v) => v.status === 'live' || v.status === 'paused'
+// This panel shows ONLY live venues. Every other state — paused, pending,
+// rejected, drafts, deletion-requested, deleted — lives in the All venues
+// registry (filterable there), and deletion requests also have their own panel.
+const isLive = (v) => v.status === 'live'
 
 const GRID = { display: 'grid', gridTemplateColumns: '34px 2.5fr 1.2fr 140px 100px 100px 80px 100px 120px 175px', minWidth: 1280, gap: 10 }
 
@@ -24,7 +23,7 @@ export default function VenuesPage() {
   const { width } = useViewport()
   const compact = width < 768
   const [selectedIds, setSelectedIds] = useState([])
-  const live = venues.filter(isOnPlatform)
+  const live = venues.filter(isLive)
 
   const toggleSel = (id) =>
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))

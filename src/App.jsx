@@ -8,6 +8,7 @@ import ApprovalsListPage from './features/approvals/ApprovalsListPage.jsx'
 import ApprovalDetailPage from './features/approvals/ApprovalDetailPage.jsx'
 import VenuesPage from './features/venues/VenuesPage.jsx'
 import AllVenuesPage from './features/venues/AllVenuesPage.jsx'
+import DeletionRequestsPage from './features/deletions/DeletionRequestsPage.jsx'
 import VendorsPage from './features/vendors/VendorsPage.jsx'
 import UsersPage from './features/users/UsersPage.jsx'
 import BookingsPage from './features/bookings/BookingsPage.jsx'
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/approvals/:id" element={<ApprovalDetailPage />} />
           <Route path="/venues" element={<VenuesPage />} />
           <Route path="/all-venues" element={<AllVenuesPage />} />
+          <Route path="/deletion-requests" element={<DeletionRequestsPage />} />
           <Route path="/vendors" element={<VendorsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/bookings" element={<BookingsPage />} />

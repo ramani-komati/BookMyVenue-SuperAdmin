@@ -55,6 +55,7 @@ export default function DashboardPage() {
   const pendingCount = pendingApprovals.length
   const oldestWait = pendingCount ? 'oldest waiting ' + Math.max(...pendingApprovals.map((p) => p.waitingH)) + ' h' : 'nothing waiting'
   const failedPayouts = payoutsList.filter((p) => p.status === 'failed').length
+  const deletionRequests = venues.filter((v) => v.status === 'deletion_requested').length
 
   const grossValue = bookings.reduce((s, b) => s + (Number(b.amountNum) || 0), 0)
   const liveVenues = venues.filter((v) => v.status === 'live').length
@@ -69,6 +70,7 @@ export default function DashboardPage() {
 
   const attention = [
     { label: 'Venues waiting for approval', count: pendingCount, icon: 'clock', iconBg: 'var(--warning-50)', iconColor: 'var(--warning-600)', go: () => navigate('/approvals') },
+    { label: 'Venue deletion requests', count: deletionRequests, icon: 'inbox', iconBg: 'var(--warning-50)', iconColor: 'var(--warning-600)', go: () => navigate('/deletion-requests') },
     { label: 'Flagged reviews to moderate', count: reviews.length, icon: 'star', iconBg: 'var(--error-50)', iconColor: 'var(--error-600)', go: () => navigate('/reviews') },
     { label: 'Failed payouts to retry', count: failedPayouts, icon: 'wallet', iconBg: 'var(--info-50)', iconColor: 'var(--info-600)', go: () => navigate('/payouts', { state: { tab: 'Failed' } }) },
   ]

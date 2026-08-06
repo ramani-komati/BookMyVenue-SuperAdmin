@@ -8,7 +8,7 @@ import Button from '../ui/Button.jsx'
 import useViewport from '../../hooks/useViewport.js'
 
 const USER_META = { active: ['success', 'Active'], blocked: ['error', 'Blocked'] }
-const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'], deleted: ['neutral', 'Deleted'] }
+const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'], deleted: ['neutral', 'Deleted'], deletion_requested: ['warning', 'Deletion requested'] }
 
 const sectionTitle = { fontSize: 13.5, fontWeight: 800, color: 'var(--text-heading)', textTransform: 'uppercase', letterSpacing: '.04em' }
 
@@ -33,7 +33,7 @@ function DetailRow({ label, value }) {
 export default function DetailDrawer() {
   const {
     drawer, closeDrawer, openDrawer, vendors, users, venues, bookings,
-    updateVendor, updateUser, updateVenue, openModal, logAudit, showToast, settings,
+    updateVendor, updateUser, updateVenue, updateBooking, openModal, logAudit, showToast, settings,
   } = useAdmin()
   // Fallback fee for legacy rows without a frozen per-booking fee.
   const feeFallback = Number(settings?.fee) || 20
@@ -88,6 +88,46 @@ export default function DetailDrawer() {
       logAudit(v.featured ? 'Unfeatured venue' : 'Featured venue', v.name, 'homepage feature: ' + (v.featured ? 'off' : 'on'))
       showToast(v.featured ? v.name + ' removed from homepage' : v.name + ' featured on homepage')
     }
+
+    // Vendor-requested deletion: approving removes the venue (soft-delete),
+    // rejecting keeps it live. The backend runs the real delete on approve.
+    const approveDeletion = () => openModal({
+      title: 'Approve deletion of ' + v.name + '?',
+      body: 'The venue is removed from BookMyVenues and no longer bookable. Its booking & revenue history is kept. Upcoming bookings must be cleared first.',
+      confirmLabel: 'Approve deletion', danger: true,
+      onConfirm: () => {
+        updateVenue(v.id, { status: 'deleted' })
+        logAudit('Approved venue deletion', v.name, 'deletion_requested → deleted')
+        showToast(v.name + ' deleted')
+        closeDrawer()
+      },
+    })
+    const rejectDeletion = () => {
+      updateVenue(v.id, { status: 'live' })
+      logAudit('Rejected venue deletion', v.name, 'deletion_requested → live')
+      showToast('Deletion request for ' + v.name + ' rejected')
+    }
+
+    // This venue's bookings (base name + its "— Pitch/Screen" siblings), so the
+    // admin can issue a refund straight from the venue.
+    const bMethod = (m) => ({ upi: 'UPI', card: 'Card', netbanking: 'Net banking', online: 'Online', venue: 'Pay at venue', 'walk-in': 'Walk-in', cash: 'Cash' }[String(m || '').toLowerCase()] || m || '—')
+    const paidOnline = (b) => !['venue', 'walk-in', 'cash'].includes(String(b.method || '').toLowerCase())
+    const venueBookings = bookings.filter((b) => {
+      const n = String(b.venue || '')
+      return n === v.name || n.startsWith(v.name + ' — ')
+    })
+    const refund = (b) => openModal({
+      title: 'Refund ' + bookingRef(b.id) + '?',
+      body: (b.customer || 'The customer') + ' paid ' + fmt(b.amountNum) + '. The refund goes back the same way in 5–7 days. Note: if this booking’s week already has a payout row, that payout does NOT auto-adjust — settle the difference with the vendor manually.',
+      confirmLabel: 'Issue refund', danger: true, needsReason: true,
+      amount: String(Number(b.amountNum) || 0), maxAmount: Number(b.amountNum) || 0,
+      onConfirm: (reason, amount) => {
+        updateBooking(b.id, { status: 'refunded' })
+        const amt = fmt(Number(amount))
+        logAudit('Issued refund', bookingRef(b.id) + ' · ' + amt, (b.status || 'confirmed') + ' → refunded (' + reason + ')')
+        showToast('Refund of ' + amt + ' issued for ' + bookingRef(b.id))
+      },
+    })
 
     header = (
       <>
@@ -150,8 +190,45 @@ export default function DetailDrawer() {
           </div>
         </div>
 
+        {/* Bookings on this venue — issue a refund straight from here. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={sectionTitle}>Bookings &amp; refunds</div>
+          {venueBookings.length === 0 ? (
+            <div style={{ fontSize: 14.5, color: 'var(--text-muted)', padding: '2px 2px 4px' }}>No bookings for this venue yet.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+              {venueBookings.map((b) => {
+                const refundable = paidOnline(b) && b.status !== 'refunded'
+                return (
+                  <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border-subtle)', borderRadius: 11, flexWrap: 'wrap' }}>
+                    <span style={{ minWidth: 0, flex: '1 1 160px' }}>
+                      <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>{bookingRef(b.id)} · {fmt(b.amountNum)}</span>
+                      <span style={{ display: 'block', fontSize: 13.5, color: 'var(--text-muted)' }}>{b.customer || 'Guest'}{b.slot ? ' · ' + b.slot : ''} · {bMethod(b.method)}</span>
+                    </span>
+                    {b.status === 'refunded' ? (
+                      <Badge status="info" size="sm">Refunded</Badge>
+                    ) : refundable ? (
+                      <Button variant="secondary" size="sm" onClick={() => refund(b)}>Issue refund</Button>
+                    ) : (
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--warning-600)' }}>No online payment</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
         {/* A deleted venue is history, not an operable listing — no actions. */}
-        {v.status === 'deleted' ? (
+        {v.status === 'deletion_requested' ? (
+          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--warning-700)', background: 'var(--warning-50)', border: '1px solid var(--warning-600)', borderRadius: 10, padding: '10px 14px' }}>
+              The vendor requested to delete this venue. It stays live until you decide.
+            </div>
+            <Button variant="danger" size="sm" block onClick={approveDeletion}>Approve deletion</Button>
+            <Button variant="secondary" size="sm" block onClick={rejectDeletion}>Reject — keep it live</Button>
+          </div>
+        ) : v.status === 'deleted' ? (
           <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, fontSize: 15, fontWeight: 600, color: 'var(--text-muted)' }}>
             This venue was deleted by its vendor and is no longer on the platform. Its bookings and revenue history are kept for records.
           </div>

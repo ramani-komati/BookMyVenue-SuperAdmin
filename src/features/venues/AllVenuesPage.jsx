@@ -10,11 +10,12 @@ import Badge from '../../components/ui/Badge.jsx'
 const VENUE_META = {
   live: ['live', 'Live'], paused: ['warning', 'Paused'], pending: ['warning', 'Pending'],
   rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'], deleted: ['neutral', 'Deleted'],
+  deletion_requested: ['warning', 'Deletion requested'],
 }
 const venueMeta = (status) => VENUE_META[status] || ['draft', status || 'Unknown']
 
 // Filter chips in lifecycle order; only chips with at least one venue render.
-const STATUS_ORDER = ['live', 'paused', 'pending', 'rejected', 'draft', 'deleted']
+const STATUS_ORDER = ['live', 'paused', 'deletion_requested', 'pending', 'rejected', 'draft', 'deleted']
 
 const GRID = { display: 'grid', gridTemplateColumns: '2.5fr 1.2fr 140px 100px 100px 80px 100px 150px', minWidth: 1140, gap: 10 }
 
