@@ -40,5 +40,14 @@ export function toUserMessage(err) {
     return err.message || 'Request failed. Please try again.'
   }
   if (err instanceof AppError) return err.message
+  // adminApi.request throws a plain Error carrying `.status` and the backend's
+  // `{detail}` as its message — surface it instead of masking every failure as
+  // a generic error (400 invalid phone, 403 not-an-admin/blocked, etc.).
+  if (err && typeof err === 'object' && (typeof err.status === 'number' || err.message)) {
+    if (err.status === 0) return 'Network error — check your connection and try again.'
+    if (err.status === 404) return 'That endpoint isn’t available yet — the backend may not have this feature deployed.'
+    if (err.status >= 500) return 'Server error — please try again in a moment.'
+    return err.message || 'Request failed. Please try again.'
+  }
   return 'Something went wrong. Please try again.'
 }

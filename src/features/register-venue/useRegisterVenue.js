@@ -61,6 +61,9 @@ export default function useRegisterVenue() {
       setBasics((prev) => ({ ...prev, phone: res?.vendor?.phone || phone }))
       setPhase('form')
     } catch (err) {
+      // Log the full error (status + backend detail) so a masked failure is
+      // diagnosable from the console, not just the surfaced message.
+      console.error('register-venue: resolveOwner failed', err?.status, err)
       setOwnerError(toUserMessage(err))
     } finally {
       setResolving(false)
