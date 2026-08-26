@@ -14,7 +14,7 @@
  */
 
 import { ApiError, AuthError } from '@/services/errors'
-import { PATCH_SECTIONS } from '@/features/register-venue/model'
+import { PATCH_SECTIONS } from '@/features/venue-registration/model'
 
 const VENDOR_API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
@@ -112,6 +112,12 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
 
 export const registerApi = {
   createDraft: (initial = {}) => request('/venues/drafts', { method: 'POST', body: toServerDraft(initial) }),
+
+  getDraft: (draftId) => request(`/venues/drafts/${draftId}`),
+
+  reopenDraft: (draftId) => request(`/venues/drafts/${draftId}/reopen`, { method: 'POST' }),
+
+  deleteDraft: (draftId) => request(`/venues/drafts/${draftId}`, { method: 'DELETE' }),
 
   patchDraft: (draftId, section, data, { strict = false } = {}) =>
     request(`/venues/drafts/${draftId}/sections/${section}`, {

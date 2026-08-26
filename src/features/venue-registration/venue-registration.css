@@ -1,0 +1,438 @@
+/* ==========================================================================
+   Venue registration — page-specific styles (rv-*)
+   Scoped to the Register Venue feature. Ported from the source design.
+   ========================================================================== */
+
+/* Step navigation item (sidebar) */
+.rv-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-body);
+  transition: background 0.15s ease;
+}
+.rv-nav-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 31px;
+  top: 52px;
+  height: 22px;
+  width: 2px;
+  background: var(--neutral-200);
+  transform: translateX(-1px);
+}
+.rv-nav-item[data-done='true']:not(:last-child)::after {
+  background: var(--success-500);
+}
+.rv-nav-item[data-locked='true'] {
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+.rv-nav-item:hover {
+  background: var(--red-50);
+}
+.rv-nav-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: var(--neutral-100);
+  color: var(--text-muted);
+  transition: 0.15s ease;
+}
+.rv-nav-item[data-active='true'] {
+  background: var(--red-50);
+}
+.rv-nav-item[data-active='true'] .rv-nav-ic {
+  background: var(--brand-accent);
+  color: #fff;
+}
+.rv-nav-item[data-done='true'] .rv-nav-ic {
+  background: var(--success-50);
+  color: var(--success-600);
+}
+.rv-nav-lbl {
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+}
+.rv-nav-item[data-active='true'] .rv-nav-lbl,
+.rv-nav-item[data-done='true'] .rv-nav-lbl {
+  color: var(--text-heading);
+}
+
+/* Amenity / sub-category selectable tile */
+.rv-amenity {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  min-height: 56px;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+/* The checkbox label is the tile's only click target — stretch it so
+   clicking anywhere on the tile (padding included) still toggles. */
+.rv-amenity .bmv-check {
+  flex: 1 1 auto;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+}
+.rv-amenity:hover,
+.rv-amenity[data-on='true'] {
+  border-color: var(--brand-accent);
+  background: var(--red-50);
+}
+
+/* Text link button */
+.rv-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: var(--fw-semibold);
+  transition: color 0.15s ease;
+}
+.rv-link-btn:hover {
+  color: var(--error-600);
+}
+
+/* Photo upload tiles */
+.rv-uptile {
+  width: 190px;
+  height: 190px;
+  border: 2px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: var(--surface-card);
+  transition: 0.15s ease;
+  flex: 0 0 auto;
+}
+.rv-uptile:hover {
+  border-color: var(--brand-accent);
+  color: var(--brand-accent);
+  background: var(--red-50);
+}
+.rv-upthumb {
+  position: relative;
+  width: 190px;
+  height: 190px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background: var(--neutral-200);
+  flex: 0 0 auto;
+}
+.rv-upthumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.rv-upthumb--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.rv-upremove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(6, 21, 44, 0.72);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 16px;
+}
+.rv-upremove:hover {
+  background: var(--error-600);
+}
+
+/* Section panel */
+.rv-panel {
+  background: #fbf6f4;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+.rv-panel-h {
+  font-size: var(--text-lg);
+  font-weight: var(--fw-bold);
+  color: var(--text-heading);
+  margin-bottom: 18px;
+}
+.rv-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  min-height: 56px;
+  font-size: var(--text-base);
+  color: var(--text-heading);
+  font-weight: var(--fw-medium);
+}
+.rv-subbox {
+  background: #fbf6f4;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 18px;
+}
+.rv-pkg {
+  background: #fbf6f4;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rv-trash {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.15s ease;
+}
+.rv-trash:hover {
+  border-color: var(--error-500);
+  color: var(--error-500);
+  background: var(--error-50);
+}
+.rv-addon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  transition: 0.15s ease;
+}
+.rv-addon[data-on='true'] {
+  border-color: var(--brand-accent);
+  background: var(--red-50);
+}
+
+/* Amenity tag input */
+.rv-taginput {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.rv-taginput:focus-within {
+  border-color: var(--brand-accent);
+  box-shadow: var(--ring-accent);
+}
+.rv-taginput-field {
+  flex: 1;
+  min-width: 140px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--text-heading);
+  padding: 6px 4px;
+}
+.rv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--red-50);
+  color: var(--red-700);
+  border: 1px solid rgba(241, 37, 46, 0.25);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+}
+.rv-chip button {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: var(--brand-accent);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 12px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.rv-chip button:hover {
+  background: var(--red-700);
+}
+
+/* Layout shell */
+.rv-shell {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 40px;
+  align-items: start;
+}
+.rv-side {
+  position: sticky;
+  top: 180px;
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+  background: #fbf6f4;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+}
+.rv-formcard {
+  background: #fbf6f4;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 28px 28px 30px;
+}
+.rv-formcard[data-bare='true'] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Responsive layout helpers used across the steps */
+.rv-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.rv-checkgrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.rv-pkg-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1.6fr 0.9fr 0.9fr 1fr 44px;
+  gap: 14px;
+  align-items: end;
+}
+
+@media (max-width: 1200px) {
+  .rv-pkg-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .rv-pkg-grid > button {
+    grid-column: 3;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 1024px) {
+  .rv-shell {
+    grid-template-columns: 1fr;
+  }
+  .rv-side {
+    position: static;
+    max-height: none;
+  }
+  .rv-checkgrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .rv-main {
+    padding: 24px 20px 12px !important;
+  }
+  .rv-title {
+    font-size: var(--text-3xl) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .rv-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .rv-checkgrid {
+    grid-template-columns: 1fr;
+  }
+  .rv-pkg-grid {
+    grid-template-columns: 1fr;
+  }
+  .rv-pkg-grid > button {
+    grid-column: 1;
+    justify-self: start;
+  }
+  .rv-sport-top {
+    grid-template-columns: 1fr !important;
+  }
+  .rv-main {
+    padding: 20px 16px 12px !important;
+  }
+  .rv-title {
+    font-size: var(--text-2xl) !important;
+  }
+  .rv-uptile,
+  .rv-upthumb {
+    width: 140px;
+    height: 140px;
+  }
+  /* Wizard top bars: phone-sized padding; save indicator wraps under the
+     back link instead of pushing off-screen. */
+  .rv-topbar {
+    padding: 10px 16px !important;
+  }
+  .rv-topbar img {
+    height: 44px !important;
+  }
+  .rv-savebar {
+    padding: 12px 16px !important;
+    flex-wrap: wrap;
+  }
+}
