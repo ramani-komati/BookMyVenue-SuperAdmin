@@ -1,8 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // `@` → super-admin/src, matching the customer app so the venue-registration
+    // logic modules ported from there resolve their imports unchanged.
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+  },
   server: {
     port: 5175,
     // Dev-only reverse proxy: the backend's CORS allowlist covers only the

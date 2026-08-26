@@ -1,7 +1,7 @@
 import {
   Archive, Bell, Briefcase, Building2, CalendarCheck, CheckCircle, ChevronsLeft, Clock,
-  FileText, Image, Inbox, IndianRupee, LayoutDashboard, Menu, Settings, Star,
-  TrendingDown, TrendingUp, User, Users, Wallet, WifiOff, XCircle,
+  FileText, Image, Inbox, IndianRupee, LayoutDashboard, Menu, Plus, PlusCircle, Settings, Star,
+  TrendingDown, TrendingUp, User, UserPlus, Users, Wallet, WifiOff, XCircle,
 } from 'lucide-react'
 
 const ICONS = {
@@ -19,11 +19,14 @@ const ICONS = {
   'indian-rupee': IndianRupee,
   'layout-dashboard': LayoutDashboard,
   'menu': Menu,
+  'plus': Plus,
+  'plus-circle': PlusCircle,
   'settings': Settings,
   'star': Star,
   'trending-down': TrendingDown,
   'trending-up': TrendingUp,
   'user': User,
+  'user-plus': UserPlus,
   'users': Users,
   'wallet': Wallet,
   'wifi-off': WifiOff,

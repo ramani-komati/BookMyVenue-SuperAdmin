@@ -55,6 +55,13 @@ export const adminApi = {
   // ---------- reads ----------
   fetchAll: () => request('/bootstrap'),
 
+  // Register-venue: mint a vendor JWT for an owner (create the vendor if the
+  // phone is new) so the admin can drive the existing vendor registration
+  // endpoints on their behalf. Returns { vendor, token, created }.
+  // Backend: POST /api/admin/vendors/token  (see docs / Rohith spec).
+  impersonateVendor: ({ phone, name }) =>
+    request('/vendors/token', { method: 'POST', body: { phone, name } }),
+
   // ---------- writes (called alongside optimistic local updates) ----------
   updateApproval: (id, patch) => request(`/approvals/${id}`, { method: 'PATCH', body: patch }),
   updateVenue: (id, patch) => request(`/venues/${id}`, { method: 'PATCH', body: patch }),

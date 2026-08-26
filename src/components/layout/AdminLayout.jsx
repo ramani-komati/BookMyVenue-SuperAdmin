@@ -12,6 +12,7 @@ import { lockBodyScroll, unlockBodyScroll } from '../../utils/scrollLock.js'
 
 const NAV_ITEMS = [
   { key: 'dashboard', path: '/', label: 'Dashboard', icon: 'layout-dashboard' },
+  { key: 'register-venue', path: '/register-venue', label: 'Register venue', icon: 'plus-circle' },
   { key: 'approvals', path: '/approvals', label: 'Approvals', icon: 'check-circle', badge: true },
   { key: 'venues', path: '/venues', label: 'Live venues', icon: 'building-2' },
   { key: 'all-venues', path: '/all-venues', label: 'All venues', icon: 'archive' },
@@ -27,9 +28,9 @@ const NAV_ITEMS = [
 ]
 
 const TITLES = {
-  '/': 'Dashboard', '/approvals': 'Venue approvals', '/venues': 'Live venues', '/all-venues': 'All venues', '/vendors': 'Vendors',
+  '/': 'Dashboard', '/register-venue': 'Register a venue', '/approvals': 'Venue approvals', '/venues': 'Live venues', '/all-venues': 'All venues', '/vendors': 'Vendors',
   '/users': 'Users', '/bookings': 'Bookings', '/payouts': 'Payouts', '/refunds': 'Refunds', '/reviews': 'Reviews moderation',
-  '/all-venues': 'All venues', '/deletion-requests': 'Deletion requests',
+  '/deletion-requests': 'Deletion requests',
   '/settings': 'Platform settings', '/audit': 'Audit log',
 }
 

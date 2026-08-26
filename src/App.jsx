@@ -5,6 +5,7 @@ import AdminLayout from './components/layout/AdminLayout.jsx'
 import LoginPage from './features/auth/LoginPage.jsx'
 import DashboardPage from './features/dashboard/DashboardPage.jsx'
 import ApprovalsListPage from './features/approvals/ApprovalsListPage.jsx'
+import RegisterVenuePage from './features/register-venue/RegisterVenuePage.jsx'
 import ApprovalDetailPage from './features/approvals/ApprovalDetailPage.jsx'
 import VenuesPage from './features/venues/VenuesPage.jsx'
 import AllVenuesPage from './features/venues/AllVenuesPage.jsx'
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<AdminLayout />}>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/register-venue" element={<RegisterVenuePage />} />
           <Route path="/approvals" element={<ApprovalsListPage />} />
           <Route path="/approvals/:id" element={<ApprovalDetailPage />} />
           <Route path="/venues" element={<VenuesPage />} />
