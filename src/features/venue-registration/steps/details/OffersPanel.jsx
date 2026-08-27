@@ -81,6 +81,14 @@ export default function OffersPanel() {
                   />
                 )}
                 <TextField
+                  label="Uses per user (optional)"
+                  inputMode="numeric"
+                  placeholder="Blank = unlimited"
+                  value={o.perUserLimit}
+                  onChange={(e) => updateOffer(i, 'perUserLimit', sanitizeDigitsMax(e.target.value, 2))}
+                  onBlur={flushNow}
+                />
+                <TextField
                   label="Expires on (optional)"
                   type="date"
                   value={o.expiry}

@@ -107,6 +107,7 @@ export function detailFromDraft(basics = {}, location = {}, details = {}) {
         value: String(o.value ?? ''),
         minAmount: String(o.minAmount ?? ''),
         maxDiscount: String(o.maxDiscount ?? ''),
+        perUserLimit: String(o.perUserLimit ?? ''),
         expiry: (o.expiry || '').trim(),
       })),
     sports: isPlayzone

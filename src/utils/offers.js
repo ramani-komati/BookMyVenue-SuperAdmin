@@ -30,6 +30,8 @@ export const blankOffer = () => ({
   minAmount: '',
   maxDiscount: '',
   expiry: '',
+  // How many times ONE user may redeem this offer. Blank/0 = unlimited.
+  perUserLimit: '',
 });
 
 /**
@@ -53,6 +55,8 @@ export function normalizeOffer(raw, i = 0) {
     minAmount: Math.max(0, parseAmount(raw.minAmount)),
     maxDiscount: Math.max(0, parseAmount(raw.maxDiscount)),
     expiry: String(raw.expiry || '').trim(),
+    // Per-user redemption cap (0 = unlimited). Enforced server-side.
+    perUserLimit: Math.max(0, parseAmount(raw.perUserLimit)),
   };
 }
 
@@ -98,6 +102,14 @@ export function evalOffer(offer, base, today = todayISO()) {
   return { eligible: true, discount, reason: '', shortBy: 0 };
 }
 
+/** Just the headline discount, e.g. "₹200 OFF" or "10% OFF" — for the compact
+ *  venue-card badge (no min-spend / cap / expiry details). */
+export function offerShort(offer) {
+  const o = offer && offer.value != null ? offer : normalizeOffer(offer);
+  if (!o) return '';
+  return o.type === 'percent' ? `${o.value}% OFF` : `₹${o.value.toLocaleString('en-IN')} OFF`;
+}
+
 /** A one-line human summary of an offer's terms, e.g. "10% OFF up to ₹200 · Min ₹500". */
 export function offerSummary(offer) {
   const o = offer && offer.value != null ? offer : normalizeOffer(offer);
@@ -105,6 +117,7 @@ export function offerSummary(offer) {
   const head = o.type === 'percent' ? `${o.value}% OFF` : `₹${o.value.toLocaleString('en-IN')} OFF`;
   const parts = [o.type === 'percent' && o.maxDiscount > 0 ? `${head} up to ₹${o.maxDiscount.toLocaleString('en-IN')}` : head];
   if (o.minAmount > 0) parts.push(`Min ₹${o.minAmount.toLocaleString('en-IN')}`);
+  if (o.perUserLimit > 0) parts.push(`${o.perUserLimit} use${o.perUserLimit === 1 ? '' : 's'}/user`);
   if (o.expiry) {
     const dt = new Date(`${o.expiry}T00:00`);
     if (!Number.isNaN(dt.getTime())) parts.push(`Till ${dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`);
