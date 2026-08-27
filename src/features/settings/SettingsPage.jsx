@@ -62,6 +62,7 @@ export default function SettingsPage() {
   const [newBannerCode, setNewBannerCode] = useState('') // promo code customers apply at checkout
   const [newBannerMin, setNewBannerMin] = useState('') // min spend to be eligible (₹, optional)
   const [newBannerMax, setNewBannerMax] = useState('') // cap on % discounts (₹, optional)
+  const [newBannerPerUser, setNewBannerPerUser] = useState('') // times ONE user may redeem (0/blank = unlimited)
   const [newBannerFrom, setNewBannerFrom] = useState('')
   const [newBannerTo, setNewBannerTo] = useState('')
 
@@ -111,6 +112,8 @@ export default function SettingsPage() {
         // spend to qualify, and a ₹ cap on percent discounts.
         minAmount: newBannerType === 'none' ? 0 : Math.max(0, Number(newBannerMin) || 0),
         maxDiscount: newBannerType === 'percent' ? Math.max(0, Number(newBannerMax) || 0) : 0,
+        // Per-user redemption cap (0 = unlimited). Enforced server-side.
+        perUserLimit: newBannerType === 'none' ? 0 : Math.max(0, Number(newBannerPerUser) || 0),
         from: newBannerFrom || '',
         to: newBannerTo || '',
       }],
@@ -122,6 +125,7 @@ export default function SettingsPage() {
     setNewBannerCode('')
     setNewBannerMin('')
     setNewBannerMax('')
+    setNewBannerPerUser('')
     setNewBannerFrom('')
     setNewBannerTo('')
   }
@@ -138,6 +142,7 @@ export default function SettingsPage() {
     setNewBannerCode(bn.code || '')
     setNewBannerMin(Number(bn.minAmount) > 0 ? String(bn.minAmount) : '')
     setNewBannerMax(Number(bn.maxDiscount) > 0 ? String(bn.maxDiscount) : '')
+    setNewBannerPerUser(Number(bn.perUserLimit) > 0 ? String(bn.perUserLimit) : '')
     setNewBannerFrom(bn.from || '')
     setNewBannerTo(bn.to || '')
     markSettings({ banners: settings.banners.filter((x) => x.id !== bn.id) })
@@ -299,6 +304,15 @@ export default function SettingsPage() {
               value={newBannerMax} onChange={(e) => setNewBannerMax(e.target.value)}
               disabled={newBannerType !== 'percent'}
               style={{ ...inputStyle, minHeight: 42, opacity: newBannerType === 'percent' ? 1 : 0.5 }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 15, fontWeight: 600, color: newBannerType === 'none' ? 'var(--text-muted)' : 'var(--text-heading)' }}>Uses per user (optional)</label>
+            <input
+              className="bmva" type="number" min="0" placeholder="Blank = unlimited"
+              value={newBannerPerUser} onChange={(e) => setNewBannerPerUser(e.target.value)}
+              disabled={newBannerType === 'none'}
+              style={{ ...inputStyle, minHeight: 42, opacity: newBannerType === 'none' ? 0.5 : 1 }}
             />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
