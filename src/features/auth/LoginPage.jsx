@@ -76,7 +76,7 @@ export default function LoginPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-heading)' }}>Work email</label>
               <input
-                className="bmva" type="email" placeholder="you@bookmyvenues.in" value={email}
+                className="bmva" type="email" placeholder="you@thebookmyvenues.in" value={email}
                 onChange={(e) => { setEmail(e.target.value); setErr('') }}
                 onKeyDown={(e) => e.key === 'Enter' && submitLogin()}
                 style={inputStyle}
