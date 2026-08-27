@@ -277,7 +277,7 @@ function OwnerGate({ onResolved }) {
  * wizard, gated by an owner-phone step that mints the impersonation token.
  */
 export default function RegisterVenuePage() {
-  useDocumentTitle('Register a venue · BookMyVenues');
+  useDocumentTitle('Register a venue · The BookMyVenues');
   const [owner, setOwner] = useState(null);
   return (
     <div

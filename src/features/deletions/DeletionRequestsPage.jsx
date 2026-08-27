@@ -22,7 +22,7 @@ export default function DeletionRequestsPage() {
 
   const approve = (v) => openModal({
     title: 'Approve deletion of ' + v.name + '?',
-    body: 'The venue is removed from BookMyVenues and no longer bookable. Its booking & revenue history is kept. Upcoming bookings must be cleared first.',
+    body: 'The venue is removed from The BookMyVenues and no longer bookable. Its booking & revenue history is kept. Upcoming bookings must be cleared first.',
     confirmLabel: 'Approve deletion', danger: true,
     onConfirm: () => {
       updateVenue(v.id, { status: 'deleted' })
