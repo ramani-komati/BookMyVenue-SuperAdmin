@@ -20,6 +20,19 @@ export const PRIMARY_CATEGORIES = [
   'Open Theatre',
   'Resort',
   'Playzone',
+  'Playstation',
+];
+
+// Playstation / gaming-lounge sub-categories (the setups a venue offers).
+export const PLAYSTATION_SUBCATS = [
+  'PS5',
+  'PS4',
+  'VR Gaming',
+  'Racing Simulator',
+  'Multiplayer Gaming',
+  'Tournament Play',
+  'Birthday Celebration',
+  'Friends Hangout',
 ];
 
 export const HALL_SUBCATS = [
@@ -56,7 +69,7 @@ export const SPORT_UNIT = {
 export const SPORT_CAP_OPTIONS = ['Unlimited persons', 'Limited persons'];
 
 // Booking unit noun per (non-Playzone) category; falls back to "screen".
-export const CAT_UNIT = { 'Private Hall': 'hall', Resort: 'lawn' };
+export const CAT_UNIT = { 'Private Hall': 'hall', Resort: 'lawn', Playstation: 'station' };
 
 // Predefined add-ons offered to every venue.
 export const ADDONS = [

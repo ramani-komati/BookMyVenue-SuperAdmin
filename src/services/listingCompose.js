@@ -18,6 +18,7 @@ const CATEGORY_MAP = {
   'Open Theatre': 'Private theatre',
   Resort: 'Resort',
   Playzone: 'Play zone',
+  Playstation: 'Playstation',
 }
 
 // A Playzone offering a single sport browses under that sport's own category.
@@ -42,6 +43,7 @@ const UNIT_MAP = {
   'Open Theatre': '/ show',
   Resort: '/ day',
   Playzone: '/ hour',
+  Playstation: '/ hour',
 }
 
 /** Best displayable starting price from whichever pricing model the draft used. */

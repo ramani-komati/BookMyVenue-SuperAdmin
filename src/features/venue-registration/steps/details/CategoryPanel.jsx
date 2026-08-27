@@ -1,5 +1,5 @@
 import { Checkbox, Select } from '@/reg-ui';
-import { HALL_SUBCATS, PLAYZONE_SPORTS, PRIMARY_CATEGORIES } from '@/constants/venue';
+import { HALL_SUBCATS, PLAYSTATION_SUBCATS, PLAYZONE_SPORTS, PRIMARY_CATEGORIES } from '@/constants/venue';
 import useDetails from './useDetails';
 
 /** Grid of selectable checkbox tiles (sub-categories / sports). */
@@ -37,6 +37,7 @@ export default function CategoryPanel() {
   const { details, errors, set, toggleInMap, flushNow } = useDetails();
   const isHall = details.primaryCategory === 'Private Hall';
   const isPlayzone = details.primaryCategory === 'Playzone';
+  const isPlaystation = details.primaryCategory === 'Playstation';
 
   return (
     <div className="rv-panel">
@@ -68,6 +69,15 @@ export default function CategoryPanel() {
           items={PLAYZONE_SPORTS}
           isOn={(k) => !!details.sports?.[k]}
           onToggle={(k) => toggleInMap('sports', k)}
+        />
+      )}
+
+      {isPlaystation && (
+        <ToggleGrid
+          title="Setups you offer"
+          items={PLAYSTATION_SUBCATS}
+          isOn={(k) => !!details.subCategories?.[k]}
+          onToggle={(k) => toggleInMap('subCategories', k)}
         />
       )}
     </div>
