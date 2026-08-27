@@ -10,12 +10,20 @@ export default function Modal({ open, onClose, labelledBy, children, maxWidth = 
   const panelRef = useRef(null);
   const lastFocused = useRef(null);
 
+  // onClose via ref so the focus/mount effect depends ONLY on `open` — a new
+  // onClose identity from a parent re-render must not re-run it and steal the
+  // caret out of a field the user is typing in.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     if (!open) return undefined;
     lastFocused.current = document.activeElement;
     const onKey = (e) => {
       if (e.key === 'Escape') {
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
       // Trap Tab focus inside the panel so keyboard users can't reach the
@@ -52,7 +60,7 @@ export default function Modal({ open, onClose, labelledBy, children, maxWidth = 
       document.body.style.overflow = prevOverflow;
       if (lastFocused.current instanceof HTMLElement) lastFocused.current.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
