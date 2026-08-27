@@ -1,4 +1,4 @@
-// The BookMyVenues super-admin — API service layer.
+// TheBookMyVenues super-admin — API service layer.
 //
 // Talks to the real backend only (the demo/mock layer was removed once the
 // /api/admin endpoints went live). Components never touch the network

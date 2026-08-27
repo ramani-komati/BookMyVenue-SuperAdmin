@@ -174,13 +174,13 @@ export default function AdminLayout() {
         <aside style={{ width: isNarrow ? 68 : 250, flex: '0 0 auto', background: 'var(--navy-800)', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '20px 12px 16px', gap: 2, transition: 'width .2s ease' }}>
           <button
             onClick={() => navigate('/')}
-            title="The BookMyVenues home"
+            title="TheBookMyVenues home"
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 0 20px', minHeight: 48, background: 'none', border: 'none', cursor: 'pointer' }}
           >
             {isNarrow ? (
               <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 800, color: '#fff' }}>B<span style={{ color: 'var(--red-500)' }}>M</span>V</div>
             ) : (
-              <img src="/assets/logo-sidenav.svg" alt="The BookMyVenues" style={{ height: 60, width: 'auto', maxWidth: '100%', objectFit: 'contain' }} />
+              <img src="/assets/logo-sidenav.svg" alt="TheBookMyVenues" style={{ height: 60, width: 'auto', maxWidth: '100%', objectFit: 'contain' }} />
             )}
           </button>
 
@@ -210,7 +210,7 @@ export default function AdminLayout() {
           <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(6,21,44,.5)', zIndex: 50 }} />
           <aside style={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: 264, maxWidth: '85vw', background: 'var(--navy-800)', zIndex: 51, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '18px 12px 16px', gap: 2, boxShadow: 'var(--shadow-xl)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 16px' }}>
-              <img src="/assets/logo-sidenav.svg" alt="The BookMyVenues" style={{ height: 48, width: 'auto', objectFit: 'contain' }} />
+              <img src="/assets/logo-sidenav.svg" alt="TheBookMyVenues" style={{ height: 48, width: 'auto', objectFit: 'contain' }} />
               <button onClick={() => setNavOpen(false)} aria-label="Close menu" style={{ width: 38, height: 38, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,.1)', color: '#fff', cursor: 'pointer', fontSize: 17, fontWeight: 800, flex: '0 0 auto' }}>×</button>
             </div>
             {navList(false)}

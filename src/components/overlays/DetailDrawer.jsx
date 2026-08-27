@@ -95,7 +95,7 @@ export default function DetailDrawer() {
     // rejecting keeps it live. The backend runs the real delete on approve.
     const approveDeletion = () => openModal({
       title: 'Approve deletion of ' + v.name + '?',
-      body: 'The venue is removed from The BookMyVenues and no longer bookable. Its booking & revenue history is kept. Upcoming bookings must be cleared first.',
+      body: 'The venue is removed from TheBookMyVenues and no longer bookable. Its booking & revenue history is kept. Upcoming bookings must be cleared first.',
       confirmLabel: 'Approve deletion', danger: true,
       onConfirm: () => {
         updateVenue(v.id, { status: 'deleted' })

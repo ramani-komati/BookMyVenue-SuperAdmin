@@ -45,7 +45,7 @@ function PageHeader({ owner }) {
         }}
       >
         <BackButton fallback="/" />
-        <img src="/assets/logo-full.png" alt="The BookMyVenues" style={{ height: 60, display: 'block' }} />
+        <img src="/assets/logo-full.png" alt="TheBookMyVenues" style={{ height: 60, display: 'block' }} />
       </header>
       <div
         className="rv-savebar"
@@ -227,7 +227,7 @@ function OwnerGate({ onResolved }) {
         }}
       >
         <BackButton fallback="/" />
-        <img src="/assets/logo-full.png" alt="The BookMyVenues" style={{ height: 60, display: 'block' }} />
+        <img src="/assets/logo-full.png" alt="TheBookMyVenues" style={{ height: 60, display: 'block' }} />
       </header>
       <main style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '48px 20px' }}>
         <div className="rv-formcard" style={{ width: '100%', maxWidth: 480 }}>
@@ -277,7 +277,7 @@ function OwnerGate({ onResolved }) {
  * wizard, gated by an owner-phone step that mints the impersonation token.
  */
 export default function RegisterVenuePage() {
-  useDocumentTitle('Register a venue · The BookMyVenues');
+  useDocumentTitle('Register a venue · TheBookMyVenues');
   const [owner, setOwner] = useState(null);
   return (
     <div
