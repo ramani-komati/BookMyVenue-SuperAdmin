@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
 import { bookingRef, fmt, statusMeta } from '../../utils/format.js'
+import { displayInclusiveEnd } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 import Icon from '../../components/ui/Icon.jsx'
@@ -76,7 +77,7 @@ export default function RefundsPage() {
         </div>
         <div style={{ fontSize: 14.5, color: 'var(--text-muted)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <span>{b.customer}{b.phone ? ' · ' + b.phone : ''}</span>
-          <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{b.slot}</span>
+          <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{displayInclusiveEnd(b.slot)}</span>
           <span>{methodLabel(b.method)}</span>
           <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
         </div>

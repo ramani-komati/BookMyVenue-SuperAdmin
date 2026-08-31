@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import { bookingRef, fmt, initials, placeOf, statusMeta } from '../../utils/format.js'
+import { displayInclusiveEnd } from '../../utils/slots.js'
 import { vendorEarnings, venueVendorRevenue } from '../../utils/revenue.js'
 import { lockBodyScroll, unlockBodyScroll } from '../../utils/scrollLock.js'
 import Badge from '../ui/Badge.jsx'
@@ -205,7 +206,7 @@ export default function DetailDrawer() {
                   <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border-subtle)', borderRadius: 11, flexWrap: 'wrap' }}>
                     <span style={{ minWidth: 0, flex: '1 1 160px' }}>
                       <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>{bookingRef(b.id)} · {fmt(b.amountNum)}</span>
-                      <span style={{ display: 'block', fontSize: 13.5, color: 'var(--text-muted)' }}>{b.customer || 'Guest'}{b.slot ? ' · ' + b.slot : ''} · {bMethod(b.method)}</span>
+                      <span style={{ display: 'block', fontSize: 13.5, color: 'var(--text-muted)' }}>{b.customer || 'Guest'}{b.slot ? ' · ' + displayInclusiveEnd(b.slot) : ''} · {bMethod(b.method)}</span>
                     </span>
                     {b.status === 'refunded' ? (
                       <Badge status="info" size="sm">Refunded</Badge>

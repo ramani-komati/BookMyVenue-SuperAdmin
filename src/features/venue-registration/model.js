@@ -39,6 +39,8 @@ export const blankDetails = () => ({
   diningAvailable: false,
   extraPersonPrice: '',
   maxExtraPersons: '',
+  extraHourPrice: '',
+  maxExtraHours: '',
   packages: [],
   offers: [],
   sportPricing: {},

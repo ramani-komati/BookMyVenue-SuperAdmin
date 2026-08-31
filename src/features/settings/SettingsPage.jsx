@@ -82,7 +82,10 @@ export default function SettingsPage() {
     const title = newBannerTitle.trim()
     if (!title) return showToast('Banner title is required')
     const value = Number(newBannerValue)
-    if (newBannerType !== 'none') {
+    // "none" (plain announcement) and "complimentary" (something free) carry no
+    // discount — they need only a title + text and are added straight away.
+    const isAnnouncement = newBannerType === 'none' || newBannerType === 'complimentary'
+    if (!isAnnouncement) {
       if (newBannerValue === '' || Number.isNaN(value) || value <= 0) {
         return showToast(newBannerType === 'percent' ? 'Enter the % discount for this offer' : 'Enter the ₹ discount for this offer')
       }
@@ -103,17 +106,17 @@ export default function SettingsPage() {
         id: Date.now(),
         title,
         text: newBannerText.trim(),
-        type: newBannerType, // 'none' | 'percent' | 'flat'
-        value: newBannerType === 'none' ? 0 : value,
+        type: newBannerType, // 'none' | 'complimentary' | 'percent' | 'flat'
+        value: isAnnouncement ? 0 : value,
         // Promo code (discount banners only) — customers apply it at checkout;
         // it also shows on the home hero as "Use code X".
-        code: newBannerType === 'none' ? '' : newBannerCode.trim().toUpperCase(),
+        code: isAnnouncement ? '' : newBannerCode.trim().toUpperCase(),
         // Guardrails (backend enforces them in the booking recompute): min
         // spend to qualify, and a ₹ cap on percent discounts.
-        minAmount: newBannerType === 'none' ? 0 : Math.max(0, Number(newBannerMin) || 0),
+        minAmount: isAnnouncement ? 0 : Math.max(0, Number(newBannerMin) || 0),
         maxDiscount: newBannerType === 'percent' ? Math.max(0, Number(newBannerMax) || 0) : 0,
         // Per-user redemption cap (0 = unlimited). Enforced server-side.
-        perUserLimit: newBannerType === 'none' ? 0 : Math.max(0, Number(newBannerPerUser) || 0),
+        perUserLimit: isAnnouncement ? 0 : Math.max(0, Number(newBannerPerUser) || 0),
         from: newBannerFrom || '',
         to: newBannerTo || '',
       }],
@@ -153,6 +156,7 @@ export default function SettingsPage() {
   const bannerSummary = (bn) => {
     const d = (iso) => (iso ? new Date(iso + 'T00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '')
     const bits = []
+    if (bn.type === 'complimentary') bits.push('Complimentary')
     if (bn.type === 'percent' && bn.value) bits.push(bn.value + '% OFF' + (Number(bn.maxDiscount) > 0 ? ' up to ₹' + bn.maxDiscount : ''))
     if (bn.type === 'flat' && bn.value) bits.push('₹' + bn.value + ' OFF')
     if (bn.code) bits.push('Code ' + bn.code)
@@ -261,10 +265,17 @@ export default function SettingsPage() {
             <label style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>Discount type</label>
             <select className="bmva" value={newBannerType} onChange={(e) => setNewBannerType(e.target.value)} style={{ ...inputStyle, minHeight: 42, cursor: 'pointer' }}>
               <option value="none">No discount (announcement)</option>
+              <option value="complimentary">Complimentary (free)</option>
               <option value="percent">% off</option>
               <option value="flat">₹ off</option>
             </select>
           </div>
+          {newBannerType === 'complimentary' ? (
+            <div style={{ gridColumn: '1 / -1', fontSize: 14.5, color: 'var(--text-muted)', alignSelf: 'center' }}>
+              Complimentary banner — just a title and description. Press “Add banner” to publish it.
+            </div>
+          ) : (
+          <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 15, fontWeight: 600, color: newBannerType === 'none' ? 'var(--text-muted)' : 'var(--text-heading)' }}>
               {newBannerType === 'flat' ? 'Discount (₹)' : 'Discount (%)'}
@@ -323,6 +334,8 @@ export default function SettingsPage() {
             <label style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-heading)' }}>Valid to</label>
             <input className="bmva" type="date" value={newBannerTo} onChange={(e) => setNewBannerTo(e.target.value)} style={{ ...inputStyle, minHeight: 42 }} />
           </div>
+          </>
+          )}
         </div>
         <div>
           <Button variant="navy" size="sm" onClick={addBanner}>Add banner</Button>

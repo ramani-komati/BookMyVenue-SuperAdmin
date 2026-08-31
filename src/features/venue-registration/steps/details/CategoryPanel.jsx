@@ -34,10 +34,18 @@ function ToggleGrid({ title, items, isOn, onToggle }) {
  * (occasions for Private Hall, sports for Playzone).
  */
 export default function CategoryPanel() {
-  const { details, errors, set, toggleInMap, flushNow } = useDetails();
+  const { details, errors, patch, toggleInMap, flushNow } = useDetails();
   const isHall = details.primaryCategory === 'Private Hall';
   const isPlayzone = details.primaryCategory === 'Playzone';
   const isPlaystation = details.primaryCategory === 'Playstation';
+
+  // Switching category clears the previous one's taxonomy — hall occasions and
+  // PlayStation setups share the `subCategories` map, so keeping stale entries
+  // would leak e.g. "PS5" into a hall's occasions. Sports reset for the same reason.
+  const changeCategory = (val) => {
+    if (val === details.primaryCategory) return;
+    patch((prev) => ({ ...prev, primaryCategory: val, subCategories: {}, sports: {} }));
+  };
 
   return (
     <div className="rv-panel">
@@ -50,7 +58,7 @@ export default function CategoryPanel() {
         options={PRIMARY_CATEGORIES}
         value={details.primaryCategory}
         error={errors.primaryCategory}
-        onChange={(e) => set('primaryCategory', e.target.value)}
+        onChange={(e) => changeCategory(e.target.value)}
         onBlur={flushNow}
       />
 

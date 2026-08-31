@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BackButton, Button, Form, Icon, SaveIndicator, TextField } from '@/reg-ui';
+import { Button, Form, Icon, SaveIndicator, TextField } from '@/reg-ui';
 import useDocumentTitle from '@/hooks/useDocumentTitle';
 import { adminApi } from '@/services/adminApi';
 import { setVendorToken } from '@/services/registerApi';
@@ -32,40 +32,26 @@ function formatSavedAt(iso) {
 function PageHeader({ owner }) {
   const { saveStatus, saveError, savedAt } = useVenueDraftContext();
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 50 }}>
-      <header
-        className="rv-topbar"
-        style={{
-          background: 'var(--surface-card)',
-          borderBottom: '1px solid var(--border-subtle)',
-          padding: '14px 40px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 14,
-        }}
-      >
-        <BackButton fallback="/" />
-        <img src="/assets/logo-full.png" alt="TheBookMyVenues" style={{ height: 60, display: 'block' }} />
-      </header>
-      <div
-        className="rv-savebar"
-        style={{
-          background: 'var(--surface-card)',
-          borderBottom: '1px solid var(--border-subtle)',
-          padding: '16px 40px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-        }}
-      >
-        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-          Registering for owner{' '}
-          <b style={{ color: 'var(--text-heading)' }}>+91 {owner?.vendor?.phone || ''}</b>
-          {owner?.created ? ' · new vendor' : ''}
-        </span>
-        <SaveIndicator status={saveStatus} savedAtLabel={formatSavedAt(savedAt)} errorDetail={saveError} />
-      </div>
+    <div
+      className="rv-savebar"
+      style={{
+        background: 'var(--surface-card)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '14px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        marginBottom: 24,
+      }}
+    >
+      <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+        Registering for owner{' '}
+        <b style={{ color: 'var(--text-heading)' }}>+91 {owner?.vendor?.phone || ''}</b>
+        {owner?.created ? ' · new vendor' : ''}
+      </span>
+      <SaveIndicator status={saveStatus} savedAtLabel={formatSavedAt(savedAt)} errorDetail={saveError} />
     </div>
   );
 }
@@ -129,10 +115,10 @@ function RegisterVenueInner({ owner }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
       <PageHeader owner={owner} />
 
-      <main style={{ flex: 1, padding: '36px 40px 16px' }} className="rv-main">
+      <main style={{ flex: 1 }} className="rv-main">
         {loadState === 'loading' ? (
           <LoadingState />
         ) : (
@@ -140,18 +126,6 @@ function RegisterVenueInner({ owner }) {
             <FormSidebar />
 
             <section style={{ minWidth: 0 }}>
-              <h1
-                style={{
-                  fontSize: 'var(--text-4xl)',
-                  fontWeight: 800,
-                  color: 'var(--text-heading)',
-                  letterSpacing: '-.02em',
-                  margin: '0 0 8px',
-                }}
-                className="rv-title"
-              >
-                Register a venue
-              </h1>
               <p
                 style={{
                   fontSize: 'var(--text-base)',
@@ -215,25 +189,11 @@ function OwnerGate({ onResolved }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <header
-        style={{
-          background: 'var(--surface-card)',
-          borderBottom: '1px solid var(--border-subtle)',
-          padding: '14px 40px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 14,
-        }}
-      >
-        <BackButton fallback="/" />
-        <img src="/assets/logo-full.png" alt="TheBookMyVenues" style={{ height: 60, display: 'block' }} />
-      </header>
-      <main style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '48px 20px' }}>
-        <div className="rv-formcard" style={{ width: '100%', maxWidth: 480 }}>
-          <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-heading)', margin: '0 0 6px' }}>
-            Register a venue for an owner
-          </h1>
+    <main style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '8px 0 48px' }}>
+      <div className="rv-formcard" style={{ width: '100%', maxWidth: 480 }}>
+        <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-heading)', margin: '0 0 6px' }}>
+          Register a venue for an owner
+        </h1>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: '0 0 20px' }}>
             Enter the owner&apos;s mobile number. If they already have a vendor account it&apos;s attached,
             otherwise a new one is created. Then fill the same form the vendor uses.
@@ -265,37 +225,24 @@ function OwnerGate({ onResolved }) {
               </Button>
             </div>
           </Form>
-        </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
 
 /**
  * RegisterVenuePage — admin entry for registering a venue on an owner's behalf.
- * Renders full-screen (over the admin chrome) so it's identical to the vendor
- * wizard, gated by an owner-phone step that mints the impersonation token.
+ * Renders inside the admin layout (sidebar/chrome stay visible), gated by an
+ * owner-phone step that mints the impersonation token.
  */
 export default function RegisterVenuePage() {
   useDocumentTitle('Register a venue · TheBookMyVenues');
   const [owner, setOwner] = useState(null);
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 200,
-        overflow: 'auto',
-        background: 'var(--surface-page, #fff)',
-      }}
-    >
-      {owner ? (
-        <VenueDraftProvider>
-          <RegisterVenueInner owner={owner} />
-        </VenueDraftProvider>
-      ) : (
-        <OwnerGate onResolved={setOwner} />
-      )}
-    </div>
+  return owner ? (
+    <VenueDraftProvider>
+      <RegisterVenueInner owner={owner} />
+    </VenueDraftProvider>
+  ) : (
+    <OwnerGate onResolved={setOwner} />
   );
 }

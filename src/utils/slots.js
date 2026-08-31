@@ -69,10 +69,62 @@ export function makeSlotLabel(startMin, endMin) {
   return `${fmt24(startMin)} ${EN_DASH} ${fmt24(endMin)}`;
 }
 
-/** A booked label shown in 12-hour form, e.g. "1:30 PM – 2:30 PM". */
+/**
+ * The end minute SHOWN to a human for a slot. A slot is stored as a half-open
+ * range [start, end) — e.g. 07:00–08:00 means "up to but not including 08:00".
+ * Showing the raw 08:00 makes it look shared with the next slot (which starts at
+ * 08:00), so every user-facing range shows the inclusive last minute instead:
+ * 07:00–08:00 reads as "7:00 – 7:59". Stored labels / overlap math are unchanged.
+ */
+export function displayEndMin(endMin) {
+  return endMin - 1;
+}
+
+/** A booked label shown in 12-hour form, e.g. "1:30 PM – 2:29 PM". */
 export function prettyLabel(label) {
   const r = parseSlotRange(label);
-  return r ? `${formatMin(r.start)} – ${formatMin(r.end)}` : label;
+  return r ? `${formatMin(r.start)} – ${formatMin(displayEndMin(r.end))}` : label;
+}
+
+/** A stored label reformatted for display in 24h form with the inclusive end,
+ *  e.g. "19:00 – 20:00" → "19:00 – 19:59". Falls back to the raw label. */
+export function formatSlotLabel(label) {
+  const r = parseSlotRange(label);
+  return r ? `${fmt24(r.start)} ${EN_DASH} ${fmt24(displayEndMin(r.end))}` : label;
+}
+
+/**
+ * Rewrite every time RANGE embedded in an already-formatted display string so
+ * its END shows the inclusive last minute:
+ *   "6:00 PM – 7:00 PM"            → "6:00 PM – 6:59 PM"
+ *   "Aug 15 · 18:00 – 19:00"       → "Aug 15 · 18:00 – 18:59"
+ * Works on both 12-hour (with AM/PM) and 24-hour ranges and leaves any text
+ * without a parseable range untouched. Used for booking-time strings the
+ * backend pre-formats (the admin app renders those verbatim). ASSUMES the
+ * source shows the half-open boundary end (X:00); do not double-apply.
+ */
+export function displayInclusiveEnd(text) {
+  if (text == null) return text;
+  return String(text).replace(
+    /(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?\s*[–—-]\s*)(\d{1,2}):(\d{2})(\s*)([AaPp][Mm])?/g,
+    (full, head, eh, em, sp, ap) => {
+      const endH = Number(eh);
+      const endM = Number(em);
+      const h24 = ap ? (endH % 12) + (ap.toUpperCase() === 'PM' ? 12 : 0) : endH;
+      let endMin = h24 * 60 + endM;
+      if (endMin === 0) endMin = 24 * 60; // a midnight end (00:00) means 1440
+      const inc = endMin - 1;
+      const nh = Math.floor(inc / 60) % 24;
+      const nm = String(inc % 60).padStart(2, '0');
+      if (ap) {
+        const suffix = nh >= 12 ? 'PM' : 'AM';
+        const cased = ap === ap.toLowerCase() ? suffix.toLowerCase() : suffix;
+        const h12 = nh % 12 === 0 ? 12 : nh % 12;
+        return `${head}${h12}:${nm}${sp || ' '}${cased}`;
+      }
+      return `${head}${String(nh).padStart(2, '0')}:${nm}`;
+    },
+  );
 }
 
 /** Slot length in minutes (defaults to 60 if the label can't be parsed). */

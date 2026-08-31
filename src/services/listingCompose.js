@@ -130,6 +130,8 @@ export function detailFromDraft(basics = {}, location = {}, details = {}) {
     occasions: Object.keys(details.subCategories || {}).filter((k) => details.subCategories[k]),
     extraPersonPrice: details.extraPersonPrice || '',
     maxExtraPersons: details.maxExtraPersons || '',
+    extraHourPrice: details.extraHourPrice || '',
+    maxExtraHours: details.maxExtraHours || '',
     contactPhone: basics.phone || '',
     address: [location.houseStreet, location.area, location.city, location.stateName, location.pincode]
       .map((x) => x?.trim?.())

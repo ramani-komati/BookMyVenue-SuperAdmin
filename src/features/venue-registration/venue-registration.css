@@ -325,8 +325,8 @@
 }
 .rv-side {
   position: sticky;
-  top: 180px;
-  max-height: calc(100vh - 210px);
+  top: 24px;
+  max-height: calc(100vh - 48px);
   overflow-y: auto;
   background: #fbf6f4;
   border: 1px solid var(--border-subtle);

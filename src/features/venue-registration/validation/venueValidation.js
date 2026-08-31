@@ -79,6 +79,9 @@ export function detailsErrors(d = {}) {
   if (truthy(d.extraPersonPrice)) {
     errors.extraPersonPrice = validateAmount(d.extraPersonPrice, { label: 'Extra person price' });
   }
+  if (truthy(d.extraHourPrice)) {
+    errors.extraHourPrice = validateAmount(d.extraHourPrice, { label: 'Extra hour price' });
+  }
   return clean(errors);
 }
 
