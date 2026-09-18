@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import { bookingRef, fmt, initials, placeOf, statusMeta } from '../../utils/format.js'
@@ -28,6 +28,91 @@ function DetailRow({ label, value }) {
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 14px', border: '1px solid var(--border-subtle)', borderRadius: 11 }}>
       <span style={{ flex: '0 0 110px', fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em' }}>{label}</span>
       <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text-heading)' }}>{value}</span>
+    </div>
+  )
+}
+
+/**
+ * Part payment — per-venue split of the bill: the admin lets customers pay only
+ * a slice ONLINE now (a percentage of the bill or a fixed ₹ amount) and settle
+ * the rest AT THE VENUE. The ₹20 fee lives inside the online part, so the
+ * customer's grand total is unchanged — only WHEN/WHERE it's paid changes.
+ * Persisted on the venue as `partPayment: { enabled, mode: 'percent'|'fixed', value }`.
+ */
+function PartPaymentControl({ v, updateVenue, logAudit, showToast }) {
+  const saved = v.partPayment || {}
+  const [enabled, setEnabled] = useState(Boolean(saved.enabled))
+  const [mode, setMode] = useState(saved.mode === 'fixed' ? 'fixed' : 'percent')
+  const [value, setValue] = useState(saved.value != null ? String(saved.value) : '')
+
+  // Re-seed the form when the drawer switches to another venue.
+  useEffect(() => {
+    const p = v.partPayment || {}
+    setEnabled(Boolean(p.enabled))
+    setMode(p.mode === 'fixed' ? 'fixed' : 'percent')
+    setValue(p.value != null ? String(p.value) : '')
+  }, [v.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const num = Math.round(Number(value))
+  const valid = !enabled || (Number.isFinite(num) && num > 0 && (mode !== 'percent' || num <= 99))
+  const summary = !enabled
+    ? 'Customers pay the full amount online (default).'
+    : !valid
+      ? (mode === 'percent' ? 'Enter a percentage between 1 and 99.' : 'Enter an amount greater than 0.')
+      : mode === 'percent'
+        ? `Customers pay ${num}% of the bill online now; the rest at the venue. On a ₹1,000 booking → ₹${Math.round(1000 * num / 100)} online, ₹${1000 - Math.round(1000 * num / 100)} at venue.`
+        : `Customers pay ₹${num} online now; the rest of the bill at the venue.`
+
+  const save = () => {
+    const config = enabled ? { enabled: true, mode, value: num } : { enabled: false }
+    updateVenue(v.id, { partPayment: config })
+    logAudit(
+      'Updated part payment', v.name,
+      enabled ? `pay ${mode === 'percent' ? num + '%' : '₹' + num} online, rest at venue` : 'disabled — full amount online',
+    )
+    showToast('Part payment updated for ' + v.name)
+  }
+
+  const inputStyle = { fontFamily: 'var(--font-body)', fontSize: 16, fontWeight: 700, color: 'var(--text-heading)', minHeight: 42, padding: '0 12px', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 10, width: 96 }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={sectionTitle}>Part payment</div>
+      <div style={{ fontSize: 14.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+        Let customers pay only part of the bill online and settle the rest at the venue.
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 15.5, fontWeight: 700, color: 'var(--text-heading)' }}>
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#F1252E', cursor: 'pointer' }} />
+        Enable part payment
+      </label>
+      {enabled && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', border: '1px solid var(--border-default)', borderRadius: 10, overflow: 'hidden' }}>
+            {['percent', 'fixed'].map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                style={{ fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 700, padding: '9px 16px', border: 'none', cursor: 'pointer', background: mode === m ? 'var(--navy-800)' : 'var(--surface-card)', color: mode === m ? '#fff' : 'var(--text-muted)' }}
+              >
+                {m === 'percent' ? 'Percent %' : 'Fixed ₹'}
+              </button>
+            ))}
+          </div>
+          <input
+            className="bmva"
+            type="text"
+            inputMode="numeric"
+            value={value}
+            onChange={(e) => setValue(e.target.value.replace(/[^\d]/g, '').slice(0, mode === 'percent' ? 2 : 7))}
+            placeholder={mode === 'percent' ? '20' : '200'}
+            style={inputStyle}
+          />
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>{mode === 'percent' ? '% online' : '₹ online'}</span>
+        </div>
+      )}
+      <div style={{ fontSize: 14, color: valid ? 'var(--text-muted)' : 'var(--error-600)', fontWeight: 600, lineHeight: 1.5 }}>{summary}</div>
+      <Button variant="primary" size="sm" onClick={save} disabled={!valid}>Save part payment</Button>
     </div>
   )
 }
@@ -119,18 +204,24 @@ export default function DetailDrawer() {
       const n = String(b.venue || '')
       return n === v.name || n.startsWith(v.name + ' — ')
     })
-    const refund = (b) => openModal({
+    const refund = (b) => {
+      // Refundable = the amount captured ONLINE. Part-payment bookings take the
+      // rest as cash at the venue, which we never received and can't refund.
+      const captured = b.payNow != null ? Number(b.payNow) : Number(b.amountNum) || 0
+      const atVenue = b.payNow != null ? (Number(b.atVenue) || (Number(b.amountNum) || 0) - captured) : 0
+      return openModal({
       title: 'Refund ' + bookingRef(b.id) + '?',
-      body: (b.customer || 'The customer') + ' paid ' + fmt(b.amountNum) + '. The refund goes back the same way in 5–7 days. Note: if this booking’s week already has a payout row, that payout does NOT auto-adjust — settle the difference with the vendor manually.',
+      body: (b.customer || 'The customer') + ' paid ' + fmt(captured) + ' online' + (atVenue > 0 ? ` (₹${atVenue} was collected at the venue, not refundable here)` : '') + '. The refund goes back the same way in 5–7 days. Note: if this booking’s week already has a payout row, that payout does NOT auto-adjust — settle the difference with the vendor manually.',
       confirmLabel: 'Issue refund', danger: true, needsReason: true,
-      amount: String(Number(b.amountNum) || 0), maxAmount: Number(b.amountNum) || 0,
+      amount: String(captured), maxAmount: captured,
       onConfirm: (reason, amount) => {
         updateBooking(b.id, { status: 'refunded' })
         const amt = fmt(Number(amount))
         logAudit('Issued refund', bookingRef(b.id) + ' · ' + amt, (b.status || 'confirmed') + ' → refunded (' + reason + ')')
         showToast('Refund of ' + amt + ' issued for ' + bookingRef(b.id))
       },
-    })
+      })
+    }
 
     header = (
       <>
@@ -192,6 +283,11 @@ export default function DetailDrawer() {
             )}
           </div>
         </div>
+
+        {/* Part payment — per-venue online/at-venue split (not for deleted venues). */}
+        {v.status !== 'deleted' && (
+          <PartPaymentControl v={v} updateVenue={updateVenue} logAudit={logAudit} showToast={showToast} />
+        )}
 
         {/* Bookings on this venue — issue a refund straight from here. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

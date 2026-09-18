@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
 import { bookingRef, fmt, statusMeta } from '../../utils/format.js'
-import { displayInclusiveEnd } from '../../utils/slots.js'
+import { displayInclusiveEnd, localTodayISO } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 
@@ -15,7 +15,34 @@ const BK_META = {
   refunded: ['info', 'Refunded'],
 }
 
-const TODAY = 15
+const MONTHS = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' }
+
+// The booking's calendar date as "YYYY-MM-DD" for date filtering. Prefers an
+// ISO `date` field when the backend sends one; otherwise reads it out of the
+// display slot string ("15 Jul, 18:00 – 19:00" or "Jul 15 · …"). The display
+// string carries no year, so we INFER the year that puts the date closest to
+// today (a "Jan 5" seen on Dec 20 → next January, not this one — bookings are
+// near-term). Returns '' only when no date can be read at all (such rows appear
+// under the "All dates" filter).
+function bookingISO(b, now = new Date()) {
+  const s = String(b?.date || b?.slot || '')
+  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
+  const dayMon = s.match(/\b(\d{1,2})\s+([A-Za-z]{3})/) // "15 Jul"
+  const monDay = s.match(/\b([A-Za-z]{3})\w*\s+(\d{1,2})\b/) // "Jul 15"
+  let d, mon
+  if (dayMon && MONTHS[dayMon[2].toLowerCase()]) { d = Number(dayMon[1]); mon = MONTHS[dayMon[2].toLowerCase()] }
+  else if (monDay && MONTHS[monDay[1].toLowerCase()]) { d = Number(monDay[2]); mon = MONTHS[monDay[1].toLowerCase()] }
+  else return ''
+  // Nearest-year inference across prev/this/next so December↔January wraps
+  // the right way instead of always snapping to the current year.
+  const monthIdx = Number(mon) - 1
+  const y0 = now.getFullYear()
+  const best = [y0 - 1, y0, y0 + 1]
+    .map((y) => new Date(y, monthIdx, d))
+    .reduce((a, c) => (Math.abs(c - now) < Math.abs(a - now) ? c : a))
+  return `${best.getFullYear()}-${mon}-${String(d).padStart(2, '0')}`
+}
 
 const selectStyle = {
   fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, color: 'var(--text-heading)',
@@ -50,7 +77,17 @@ export default function BookingsPage() {
   }, [location.state])
 
   const q = query.trim().toLowerCase()
-  const day = (b) => parseInt(b.slot, 10) || 0
+  const today = localTodayISO()
+  // Date-bucket match against the real current date (fixes the old hardcoded
+  // "day 15 = today" that broke once the mock data went away).
+  const matchesDate = (b) => {
+    if (filterDate === 'All') return true
+    const d = bookingISO(b)
+    if (!d) return false
+    if (filterDate === 'today') return d === today
+    if (filterDate === 'upcoming') return d > today
+    return d < today // past / "Earlier"
+  }
   // Which screen/pitch was booked: unit bookings target the unit's own
   // listing ("RK PARTY HOUSE — Screen 2"), so the unit is recoverable from
   // the name; an explicit unitLabel from the API wins when present.
@@ -64,21 +101,27 @@ export default function BookingsPage() {
   }
   const filtered = bookings.filter((b) =>
     (filterStatus === 'All' || b.status === filterStatus) &&
-    (filterDate === 'All' || (filterDate === 'today' ? day(b) === TODAY : filterDate === 'upcoming' ? day(b) > TODAY : day(b) < TODAY)) &&
+    matchesDate(b) &&
     (!q || (b.id + ' ' + bookingRef(b.id) + ' ' + b.venue + ' ' + b.customer + ' ' + (b.phone || '')).toLowerCase().includes(q)))
 
-  const refund = (b) => openModal({
+  const refund = (b) => {
+    // Only the amount actually captured ONLINE can be refunded — part-payment
+    // bookings collect the rest as cash at the venue (never received here).
+    const captured = b.payNow != null ? Number(b.payNow) : Number(b.amountNum) || 0
+    const partPaid = b.payNow != null && Number(b.payNow) < (Number(b.amountNum) || 0)
+    return openModal({
     title: 'Refund ' + bookingRef(b.id) + '?',
-    body: b.customer + ' paid ' + fmt(b.amountNum) + ' by ' + b.method + '. The refund goes back the same way in 5–7 days. Note: if this booking’s week already has a payout row, that payout does NOT auto-adjust — settle the difference with the vendor manually.',
+    body: b.customer + ' paid ' + fmt(captured) + ' online' + (partPaid ? ` (₹${Number(b.atVenue) || (Number(b.amountNum) || 0) - captured} was collected at the venue, not refundable here)` : ' by ' + b.method) + '. The refund goes back the same way in 5–7 days. Note: if this booking’s week already has a payout row, that payout does NOT auto-adjust — settle the difference with the vendor manually.',
     confirmLabel: 'Issue refund', danger: true, needsReason: true,
-    amount: String(b.amountNum), maxAmount: b.amountNum,
+    amount: String(captured), maxAmount: captured,
     onConfirm: (reason, amount) => {
       updateBooking(b.id, { status: 'refunded' })
       const amt = fmt(Number(amount))
       logAudit('Issued refund', bookingRef(b.id) + ' · ' + amt, b.status + ' → refunded (' + reason + ')')
       showToast('Refund of ' + amt + ' issued for ' + bookingRef(b.id))
     },
-  })
+    })
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

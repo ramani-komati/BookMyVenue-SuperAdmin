@@ -63,7 +63,11 @@ export default function LoginPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--navy-800)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 20 : 28, fontFamily: 'var(--font-body)', padding: isMobile ? 16 : 24 }}>
-      <img src="/assets/logo-sidenav.svg" alt="TheBookMyVenues" style={{ height: isMobile ? 72 : 100, width: 'auto' }} />
+      {/* The proper home-page logo (navy lettering) on a white chip so it reads
+          cleanly against the navy sign-in screen. */}
+      <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? '14px 24px' : '18px 32px', boxShadow: 'var(--shadow-lg)' }}>
+        <img src="/assets/logo-full.png" alt="TheBookMyVenues" style={{ height: isMobile ? 48 : 62, width: 'auto', display: 'block' }} />
+      </div>
 
       <div style={{ background: 'var(--surface-card)', borderRadius: 16, boxShadow: 'var(--shadow-lg)', padding: isMobile ? 24 : 48, width: 520, maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: 24 }}>
         <div>

@@ -7,16 +7,24 @@ const BLANK_SETTINGS = { fee: '', feeDate: '', commission: '', categories: [], c
 
 const AdminContext = createContext(null)
 
-const AUTH_KEY = 'bmv-admin-authed'
+const AUTH_KEY = 'bmv-admin-authed' // stores the session expiry epoch (ms)
 const EMAIL_KEY = 'bmv-admin-email'
+// Keep the admin signed in for 30 days after a successful login (matches the
+// backend session cookie / JWT lifetime — the server must expire on the same
+// horizon; a 401 before then still clears this and returns to sign-in).
+const AUTH_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
+// Is a stored 30-day session still valid (not past its expiry)?
+const sessionValid = () => {
+  try { return Number(localStorage.getItem(AUTH_KEY)) > Date.now() } catch { return false }
+}
 
 export function AdminProvider({ children }) {
-  // Survives page refreshes for the tab's lifetime; cleared on sign-out
-  const [authed, setAuthedState] = useState(() => {
-    try { return sessionStorage.getItem(AUTH_KEY) === '1' } catch { return false }
-  })
+  // Persists across refreshes AND browser restarts for 30 days; cleared on
+  // sign-out or session expiry (401).
+  const [authed, setAuthedState] = useState(sessionValid)
   const [adminEmail, setAdminEmail] = useState(() => {
-    try { return sessionStorage.getItem(EMAIL_KEY) || '' } catch { return '' }
+    try { return (sessionValid() && localStorage.getItem(EMAIL_KEY)) || '' } catch { return '' }
   })
   // Sign-in passes the verified email so the header/profile/audit show the
   // REAL admin (there's no /me endpoint in the admin API — the email is the
@@ -27,11 +35,11 @@ export function AdminProvider({ children }) {
     if (!value) setAdminEmail('')
     try {
       if (value) {
-        sessionStorage.setItem(AUTH_KEY, '1')
-        if (email) sessionStorage.setItem(EMAIL_KEY, email)
+        localStorage.setItem(AUTH_KEY, String(Date.now() + AUTH_TTL_MS))
+        if (email) localStorage.setItem(EMAIL_KEY, email)
       } else {
-        sessionStorage.removeItem(AUTH_KEY)
-        sessionStorage.removeItem(EMAIL_KEY)
+        localStorage.removeItem(AUTH_KEY)
+        localStorage.removeItem(EMAIL_KEY)
       }
     } catch { /* storage unavailable (private mode) — auth stays in memory */ }
   }, [])
