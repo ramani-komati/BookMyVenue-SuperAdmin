@@ -6,7 +6,7 @@ import Badge from '../../components/ui/Badge.jsx'
 
 const ACC_META = { active: ['success', 'Active'], suspended: ['error', 'Suspended'] }
 
-const GRID = { display: 'grid', gridTemplateColumns: '1.6fr 1.1fr 1.4fr 90px 120px 110px 115px', minWidth: 980, gap: 10 }
+const GRID = { display: 'grid', gridTemplateColumns: '1.6fr 1.1fr 1.4fr 90px 1.7fr 120px 110px 115px', minWidth: 1180, gap: 10 }
 
 export default function VendorsPage() {
   const { vendors, venues, bookings, settings, openDrawer } = useAdmin()
@@ -15,6 +15,16 @@ export default function VendorsPage() {
   // The vendor's actual money: Σ (amount − booking-time frozen platform fee)
   // across their venues' kept bookings — not gross turnover.
   const earningsOf = (p) => fmt(vendorEarnings(p.name, venues, bookings, Number(settings?.fee) || 20))
+  // The vendor's venues by NAME (distinct base names — per-unit listings like
+  // "Arena — Pitch 2" collapse to their parent "Arena").
+  const venueNamesOf = (p) => [
+    ...new Set(
+      venues
+        .filter((v) => v.vendor === p.name)
+        .map((v) => String(v.name || '').split(' — ')[0].trim())
+        .filter(Boolean),
+    ),
+  ]
 
   if (compact) {
     return (
@@ -35,6 +45,9 @@ export default function VendorsPage() {
               <span style={{ flex: 1 }} />
               <Badge status={statusMeta(ACC_META, p.acc)[0]} size="sm">{statusMeta(ACC_META, p.acc)[1]}</Badge>
             </div>
+            {venueNamesOf(p).length > 0 && (
+              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{venueNamesOf(p).join(', ')}</div>
+            )}
           </div>
         ))}
       </div>
@@ -45,7 +58,7 @@ export default function VendorsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-          <div>Vendor</div><div>Phone</div><div>Email</div><div>Venues</div><div>Earnings</div><div>Joined</div><div>Account</div>
+          <div>Vendor</div><div>Phone</div><div>Email</div><div>Venues</div><div>Venue names</div><div>Earnings</div><div>Joined</div><div>Account</div>
         </div>
         {vendors.map((p) => (
           <div
@@ -61,6 +74,9 @@ export default function VendorsPage() {
             <div style={{ fontSize: 16 }}>{p.phone}</div>
             <div style={{ fontSize: 15, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.email}</div>
             <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{p.venues}</div>
+            {(() => { const names = venueNamesOf(p); const text = names.join(', '); return (
+              <div title={text} style={{ fontSize: 15, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text || '—'}</div>
+            ) })()}
             <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{earningsOf(p)}</div>
             <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{p.joined}</div>
             <div><Badge status={statusMeta(ACC_META, p.acc)[0]} size="sm">{statusMeta(ACC_META, p.acc)[1]}</Badge></div>

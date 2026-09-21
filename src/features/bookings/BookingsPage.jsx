@@ -17,26 +17,35 @@ const BK_META = {
 
 const MONTHS = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' }
 
-// The booking's calendar date as "YYYY-MM-DD" for date filtering. Prefers an
-// ISO `date` field when the backend sends one; otherwise reads it out of the
-// display slot string ("15 Jul, 18:00 – 19:00" or "Jul 15 · …"). The display
-// string carries no year, so we INFER the year that puts the date closest to
-// today (a "Jan 5" seen on Dec 20 → next January, not this one — bookings are
-// near-term). Returns '' only when no date can be read at all (such rows appear
-// under the "All dates" filter).
+// The booking's calendar date as "YYYY-MM-DD" for date filtering. Prefers the
+// backend's ISO `date` (the event date) — authoritative, with the year — and
+// only falls back to reading day+month out of the display slot string
+// ("21 Sep, 18:00 – 19:00" or "Sep 21 · …") when that field is absent. Returns
+// '' only when no date can be read at all (such rows appear under "All dates").
 function bookingISO(b, now = new Date()) {
-  const s = String(b?.date || b?.slot || '')
-  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/)
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
-  const dayMon = s.match(/\b(\d{1,2})\s+([A-Za-z]{3})/) // "15 Jul"
-  const monDay = s.match(/\b([A-Za-z]{3})\w*\s+(\d{1,2})\b/) // "Jul 15"
+  // An explicit ISO event date wins — it carries the year, so no guessing.
+  const isoDate = String(b?.date || '').match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`
+  // Fallback: the display slot string has a day + month but NO year.
+  const s = String(b?.slot || '')
+  const dayMon = s.match(/\b(\d{1,2})\s+([A-Za-z]{3})/) // "21 Sep"
+  const monDay = s.match(/\b([A-Za-z]{3})\w*\s+(\d{1,2})\b/) // "Sep 21"
   let d, mon
   if (dayMon && MONTHS[dayMon[2].toLowerCase()]) { d = Number(dayMon[1]); mon = MONTHS[dayMon[2].toLowerCase()] }
   else if (monDay && MONTHS[monDay[1].toLowerCase()]) { d = Number(monDay[2]); mon = MONTHS[monDay[1].toLowerCase()] }
   else return ''
-  // Nearest-year inference across prev/this/next so December↔January wraps
-  // the right way instead of always snapping to the current year.
   const monthIdx = Number(mon) - 1
+  // Infer the missing YEAR by anchoring to when the booking was CREATED: an
+  // event falls on or after its creation day, so it's the first occurrence of
+  // this day/month on or after createdAt (this also wraps Dec→Jan correctly and
+  // never drags a year-old booking forward into "today"/"upcoming").
+  const created = b?.createdAt ? new Date(b.createdAt) : null
+  if (created && !Number.isNaN(created.getTime())) {
+    let y = created.getFullYear()
+    if (new Date(y, monthIdx, d) < new Date(y, created.getMonth(), created.getDate())) y += 1
+    return `${y}-${mon}-${String(d).padStart(2, '0')}`
+  }
+  // Last resort (no creation date): nearest year to today across prev/this/next.
   const y0 = now.getFullYear()
   const best = [y0 - 1, y0, y0 + 1]
     .map((y) => new Date(y, monthIdx, d))
