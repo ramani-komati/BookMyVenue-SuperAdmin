@@ -71,6 +71,10 @@ export default function BookingsPage() {
   const METHOD_LABELS = { upi: 'UPI', card: 'Card', netbanking: 'Net banking', venue: 'Pay at venue', 'walk-in': 'Walk-in' }
   const methodLabel = (m) => METHOD_LABELS[String(m || '').toLowerCase()] || m || '—'
   const atVenue = (b) => String(b.method || '').toLowerCase() === 'venue'
+  // Part payment: only `payNow` was captured online; the rest is due at the venue.
+  const partPaid = (b) => !atVenue(b) && b.payNow != null && Number(b.payNow) < (Number(b.amountNum) || 0)
+  const onlinePaid = (b) => Number(b.payNow) || 0
+  const venueDue = (b) => b.atVenue != null ? Number(b.atVenue) : Math.max(0, (Number(b.amountNum) || 0) - onlinePaid(b))
   const { width } = useViewport()
   const compact = width < 768
 
@@ -198,6 +202,12 @@ export default function BookingsPage() {
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>Total</span>
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
                     </div>
+                    {partPaid(b) && (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15 }}><span style={{ color: 'var(--success-700)', fontWeight: 700 }}>Paid online</span><span style={{ fontWeight: 800, color: 'var(--success-700)' }}>{fmt(onlinePaid(b))}</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15 }}><span style={{ color: 'var(--warning-600)', fontWeight: 700 }}>Collected at venue</span><span style={{ fontWeight: 800, color: 'var(--warning-600)' }}>{fmt(venueDue(b))}</span></div>
+                      </>
+                    )}
                     {atVenue(b) && (
                       <div style={{ fontSize: 13.5, color: 'var(--warning-600)', fontWeight: 700 }}>
                         Paid at the venue — the {rowFee(b)} platform fee is deducted from the vendor&apos;s weekly payout.
@@ -260,6 +270,12 @@ export default function BookingsPage() {
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>Total</span>
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</span>
                     </div>
+                    {partPaid(b) && (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--success-700)', fontWeight: 700 }}>Paid online</span><span style={{ fontWeight: 800, color: 'var(--success-700)' }}>{fmt(onlinePaid(b))}</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--warning-600)', fontWeight: 700 }}>Collected at venue</span><span style={{ fontWeight: 800, color: 'var(--warning-600)' }}>{fmt(venueDue(b))}</span></div>
+                      </>
+                    )}
                     {atVenue(b) && (
                       <div style={{ fontSize: 13.5, color: 'var(--warning-600)', fontWeight: 700 }}>
                         Paid at the venue — the {rowFee(b)} platform fee is deducted from the vendor&apos;s weekly payout.
