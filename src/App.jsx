@@ -13,6 +13,7 @@ import DeletionRequestsPage from './features/deletions/DeletionRequestsPage.jsx'
 import VendorsPage from './features/vendors/VendorsPage.jsx'
 import UsersPage from './features/users/UsersPage.jsx'
 import BookingsPage from './features/bookings/BookingsPage.jsx'
+import EventsPage from './features/events/EventsPage.jsx'
 import PayoutsPage from './features/payouts/PayoutsPage.jsx'
 import RefundsPage from './features/refunds/RefundsPage.jsx'
 import ReviewsPage from './features/reviews/ReviewsPage.jsx'
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/vendors" element={<VendorsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
+          <Route path="/events" element={<EventsPage />} />
           <Route path="/payouts" element={<PayoutsPage />} />
           <Route path="/refunds" element={<RefundsPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />

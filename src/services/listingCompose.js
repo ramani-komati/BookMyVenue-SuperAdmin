@@ -4,13 +4,12 @@
  * (categoryFromDraft / priceFromDraft / detailFromDraft / listingFromDraft) so
  * an admin-registered venue is byte-identical to a vendor-registered one.
  *
- * The super-admin app has no mock layer, so USE_MOCK is always false here (the
- * photo gallery is never truncated for a localStorage quota).
+ * The super-admin app has no mock layer at all, so nothing here is ever
+ * seeded, truncated or faked — every value comes from the submitted draft.
  */
 
 import { PLAYZONE_SPORTS, ADDONS, CAT_UNIT } from '@/constants/venue'
 
-const USE_MOCK = false
 
 const CATEGORY_MAP = {
   'Private Hall': 'Party hall',
@@ -150,7 +149,7 @@ export function listingFromDraft(draftId, draft) {
     ...(photos.venuePhotos || []).map((p) => p?.url),
     ...(photos.serviceImages || []).map((p) => p?.url),
   ].filter(Boolean)
-  const gallery = USE_MOCK ? urls.slice(0, 4) : urls
+  const gallery = urls
   return {
     id: draftId || `listing_${Date.now().toString(36)}`,
     name: basics.venueName?.trim() || 'Untitled venue',

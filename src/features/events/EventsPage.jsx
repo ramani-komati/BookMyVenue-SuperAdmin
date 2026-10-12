@@ -1,0 +1,288 @@
+import { useMemo, useState } from 'react'
+import { useAdmin } from '../../context/AdminContext.jsx'
+import Badge from '../../components/ui/Badge.jsx'
+import Button from '../../components/ui/Button.jsx'
+import Icon from '../../components/ui/Icon.jsx'
+import EventFormModal from './EventFormModal.jsx'
+import EventOrdersModal from './EventOrdersModal.jsx'
+
+/**
+ * EventsPage — the super admin's event management.
+ *
+ * Events are an ADMIN product: the admin creates them here, edits them,
+ * publishes and unpublishes them, and retires them. There is no vendor
+ * submission to approve and no vendor onboarding, bank account or payout in
+ * the way — the organiser is recorded as plain text on the event itself.
+ *
+ * The one thing that is NOT an admin decision is whether an event is
+ * complete enough to sell: the backend refuses to publish an event with no
+ * upcoming available date or no ticket price, and that refusal is shown here
+ * verbatim rather than being pre-empted by a disabled button whose reason
+ * the admin would have to guess.
+ *
+ * The legacy `pending` / `rejected` statuses are still rendered so events
+ * vendors submitted before the change can be cleared out of the queue.
+ */
+
+const inr = (n) => Number(n || 0).toLocaleString('en-IN')
+
+const dateLabel = (iso) => {
+  if (!iso) return ''
+  try {
+    return new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  } catch { return String(iso) }
+}
+
+const BADGE = {
+  draft: ['draft', 'Draft'],
+  pending: ['pending', 'Pending review'],
+  live: ['live', 'Published'],
+  paused: ['neutral', 'Unpublished'],
+  rejected: ['rejected', 'Rejected'],
+  deleted: ['neutral', 'Deleted'],
+}
+
+const TABS = [
+  { key: 'live', label: 'Published' },
+  { key: 'draft', label: 'Drafts' },
+  { key: 'paused', label: 'Unpublished' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'all', label: 'All' },
+]
+
+const EMPTY_COPY = {
+  live: ['Nothing published yet', 'Create an event and publish it — it appears on the customer Events page straight away.'],
+  draft: ['No drafts', 'Events you save without publishing wait here.'],
+  paused: ['Nothing unpublished', 'Unpublishing hides an event from customers while keeping sold tickets valid.'],
+  pending: ['Nothing waiting for review', 'Events vendors submitted before the team took over event listing would appear here.'],
+  all: ['No events yet', 'Create your first event to start selling tickets.'],
+}
+
+export default function EventsPage() {
+  const {
+    events, createEvent, updateEvent, deleteEvent, openModal, showToast,
+  } = useAdmin()
+  const [tab, setTab] = useState('live')
+  const [form, setForm] = useState(null)       // null | {} (new) | event row
+  const [orders, setOrders] = useState(null)   // the event whose bookings are open
+  const [busyId, setBusyId] = useState('')
+
+  const rows = useMemo(() => {
+    const list = tab === 'all' ? events : events.filter((e) => e.status === tab)
+    // Within "All": published first, then anything needing attention, then
+    // the rest — the order an admin scans the page in.
+    return [...list].sort((a, b) => {
+      const rank = (s) => (s === 'live' ? 0 : s === 'pending' ? 1 : s === 'draft' ? 2 : 3)
+      return rank(a.status) - rank(b.status) || String(a.name).localeCompare(String(b.name))
+    })
+  }, [events, tab])
+
+  /** Run one write, surface its real error, and clear the row's spinner. */
+  const run = async (event, action, successMessage) => {
+    setBusyId(event.id)
+    try {
+      await action()
+      if (successMessage) showToast(successMessage)
+    } catch (err) {
+      // The server's message names the actual reason — an event that cannot
+      // be published, a delete refused because tickets are sold.
+      showToast(err.message || 'That did not work — please try again')
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  const publish = (e) => run(
+    e, () => updateEvent(e.id, { status: 'publish' }), `${e.name} is now live`,
+  )
+
+  const unpublish = (e) => openModal({
+    title: `Unpublish “${e.name}”?`,
+    body: 'Customers stop seeing it and no new tickets can be sold. Tickets '
+      + 'already paid for stay valid, and you can publish it again at any time.',
+    confirmLabel: 'Unpublish',
+    onConfirm: () => run(
+      e, () => updateEvent(e.id, { status: 'unpublish' }), `${e.name} unpublished`,
+    ),
+  })
+
+  const remove = (e) => openModal({
+    title: `Delete “${e.name}”?`,
+    body: 'This hides the event everywhere. If any tickets have been sold it '
+      + 'will be unpublished instead of deleted, so those tickets keep working.',
+    confirmLabel: 'Delete event',
+    danger: true,
+    onConfirm: () => run(e, () => deleteEvent(e.id), `${e.name} deleted`),
+  })
+
+  const reject = (e) => openModal({
+    title: `Reject “${e.name}”?`,
+    body: 'The event stays hidden from customers. Your reason is recorded on the event.',
+    confirmLabel: 'Reject event',
+    danger: true,
+    needsReason: true,
+    onConfirm: (reason) => run(
+      e,
+      () => updateEvent(e.id, { status: 'rejected', reviewNotes: reason || '' }),
+      `${e.name} rejected`,
+    ),
+  })
+
+  const [emptyTitle, emptySub] = EMPTY_COPY[tab] || EMPTY_COPY.all
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: '1 1 auto' }}>
+          {TABS.map((t) => {
+            const count = t.key === 'all'
+              ? events.length
+              : events.filter((e) => e.status === t.key).length
+            return (
+              <Button
+                key={t.key}
+                variant={tab === t.key ? 'primary' : 'secondary'}
+                size="sm"
+                onClick={() => setTab(t.key)}
+              >
+                {t.label} ({count})
+              </Button>
+            )
+          })}
+        </div>
+        <Button variant="navy" size="sm" onClick={() => setForm({})} style={{ flex: '0 0 auto' }}>
+          <Icon name="plus" size={16} /> Create event
+        </Button>
+      </div>
+
+      {rows.length === 0 && (
+        <div className="card" style={{ padding: '56px 24px', textAlign: 'center' }}>
+          <div
+            style={{
+              width: 64, height: 64, borderRadius: '50%', background: 'var(--neutral-100)',
+              color: 'var(--neutral-600)', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', margin: '0 auto 16px',
+            }}
+          >
+            <Icon name="ticket" size={30} />
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-heading)' }}>
+            {emptyTitle}
+          </div>
+          <div style={{ fontSize: 15, color: 'var(--text-muted)', margin: '6px auto 0', maxWidth: 420 }}>
+            {emptySub}
+          </div>
+          {tab !== 'pending' && (
+            <div style={{ marginTop: 18 }}>
+              <Button variant="primary" size="sm" onClick={() => setForm({})}>
+                <Icon name="plus" size={16} /> Create event
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {rows.map((e) => {
+          const [tone, statusLabel] = BADGE[e.status] || BADGE.draft
+          const busy = busyId === e.id
+          return (
+            <div
+              key={e.id}
+              className="card"
+              style={{ padding: 16, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}
+            >
+              <div
+                style={{
+                  width: 72, height: 54, borderRadius: 10, flex: '0 0 auto',
+                  backgroundColor: 'var(--neutral-100)',
+                  backgroundImage: e.poster ? `url('${e.poster}')` : 'none',
+                  backgroundSize: 'cover', backgroundPosition: 'center',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--neutral-600)',
+                }}
+              >
+                {!e.poster && <Icon name="ticket" size={22} />}
+              </div>
+
+              <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: 16.5, fontWeight: 700, color: 'var(--text-heading)',
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    {e.name}
+                  </span>
+                  <Badge status={tone} size="sm">{statusLabel}</Badge>
+                  {e.category && <Badge status="info" size="sm">{e.category}</Badge>}
+                  {e.managedBy === 'vendor' && (
+                    <Badge status="neutral" size="sm">Vendor-submitted</Badge>
+                  )}
+                </div>
+                <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2, overflowWrap: 'anywhere' }}>
+                  {e.vendor || 'Organiser not recorded'} · {e.location || '—'}
+                </div>
+                <div style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {e.startTime}–{e.endTime} · {e.datesCount} date{e.datesCount === 1 ? '' : 's'}
+                  {e.dates?.length > 0 && ` (${dateLabel(e.dates[0].date)}${e.dates.length > 1 ? `–${dateLabel(e.dates[e.dates.length - 1].date)}` : ''})`}
+                  {' · '}from ₹{inr(e.fromPriceNum)}
+                </div>
+                <div style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {e.ticketsSold} / {e.capacity} tickets sold · {e.ordersNum} order{e.ordersNum === 1 ? '' : 's'} · ₹{inr(e.revenueNum)}
+                </div>
+                {e.status === 'rejected' && e.reviewNotes && (
+                  <div style={{ fontSize: 13.5, color: 'var(--status-rejected-fg)', fontWeight: 600, marginTop: 4 }}>
+                    {e.reviewNotes}
+                  </div>
+                )}
+              </div>
+
+              {/* `1 1 auto` + minWidth:0, NOT `0 0 auto`: five action buttons
+                  are ~379px of content, which is wider than a 390px phone's
+                  card interior. Refusing to shrink pushed the row past the
+                  viewport and gave the whole page a horizontal scrollbar. */}
+              <div style={{ display: 'flex', gap: 8, flex: '1 1 auto', minWidth: 0, flexWrap: 'wrap' }}>
+                <Button variant="ghost" size="sm" disabled={busy} onClick={() => setOrders(e)}>
+                  Bookings
+                </Button>
+                <Button variant="secondary" size="sm" disabled={busy} onClick={() => setForm(e)}>
+                  Edit
+                </Button>
+                {e.status === 'pending' && (
+                  <Button variant="secondary" size="sm" disabled={busy} onClick={() => reject(e)}>
+                    Reject
+                  </Button>
+                )}
+                {e.status === 'live' ? (
+                  <Button variant="secondary" size="sm" disabled={busy} onClick={() => unpublish(e)}>
+                    {busy ? '…' : 'Unpublish'}
+                  </Button>
+                ) : (
+                  <Button variant="primary" size="sm" disabled={busy} onClick={() => publish(e)}>
+                    {busy ? '…' : 'Publish'}
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" disabled={busy} onClick={() => remove(e)}>
+                  Delete
+                </Button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {form && (
+        <EventFormModal
+          event={form.id ? form : null}
+          onClose={() => setForm(null)}
+          onCreate={createEvent}
+          onUpdate={updateEvent}
+          showToast={showToast}
+        />
+      )}
+      {orders && <EventOrdersModal event={orders} onClose={() => setOrders(null)} />}
+    </div>
+  )
+}

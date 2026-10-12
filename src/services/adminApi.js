@@ -29,18 +29,33 @@ export function wakeBackend() {
   fetch(API_BASE.replace(/\/admin$/, '') + '/v1/health', { mode: 'no-cors' }).catch(() => {})
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+async function request(path, { method = 'GET', body, form } = {}) {
   const res = await fetch(API_BASE + path, {
     method,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers: form
+      // Multipart MUST NOT set Content-Type by hand (the browser adds the
+      // boundary). X-Requested-With is REQUIRED by the backend upload view:
+      // admin writes are CSRF-exempt, and a multipart POST is CORS-"simple"
+      // so it is never preflighted — a custom header is what forces the
+      // preflight and brings the origin allowlist back into play.
+      ? { 'X-Requested-With': 'XMLHttpRequest' }
+      : { 'Content-Type': 'application/json' },
+    body: form || (body !== undefined ? JSON.stringify(body) : undefined),
   })
   if (!res.ok) {
     let message = `Request failed (${res.status})`
-    try { message = (await res.json()).detail || message } catch { /* non-JSON error body */ }
+    let detail = null
+    try {
+      detail = await res.json()
+      message = detail.detail || message
+    } catch { /* non-JSON error body */ }
     const err = new Error(message)
     err.status = res.status // callers branch on 401/403 (session expired → sign-in)
+    // The events API answers a refused publish/delete with a code and
+    // sometimes the row itself; the page needs both to explain what happened.
+    err.code = detail?.code || ''
+    err.detail = detail
     throw err
   }
   return res.status === 204 ? null : res.json()
@@ -68,6 +83,30 @@ export const adminApi = {
   updateVendor: (id, patch) => request(`/vendors/${id}`, { method: 'PATCH', body: patch }),
   updateUser: (id, patch) => request(`/users/${id}`, { method: 'PATCH', body: patch }),
   updateBooking: (id, patch) => request(`/bookings/${id}`, { method: 'PATCH', body: patch }),
+  // ---------- ticketed events (admin-owned) ----------
+  // Events are a SUPER-ADMIN product: the admin creates, edits, publishes,
+  // unpublishes and retires them. Vendors have NO write path — the backend
+  // refuses their writes with 403, so this is not merely a hidden button.
+  listEvents: () => request('/events'),
+  createEvent: (payload) => request('/events', { method: 'POST', body: payload }),
+  updateEvent: (id, patch) => request(`/events/${id}`, { method: 'PATCH', body: patch }),
+  deleteEvent: (id) => request(`/events/${id}`, { method: 'DELETE' }),
+  // Who bought tickets for one event, and whether they actually paid.
+  getEventOrders: (id, params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ''),
+    ).toString()
+    return request(`/events/${id}/orders${query ? `?${query}` : ''}`)
+  },
+
+  // Image upload -> a permanent public URL (Supabase, the same bucket venue
+  // photos use). Used for event posters: the event write endpoints are
+  // JSON-only by design, so the file goes up here and arrives there as a URL.
+  uploadImage: (file) => {
+    const form = new FormData()
+    form.append('image', file)
+    return request('/uploads', { method: 'POST', form })
+  },
   updatePayout: (id, patch) => request(`/payouts/${id}`, { method: 'PATCH', body: patch }),
   resolveReview: (id, resolution) => request(`/reviews/${id}/resolve`, { method: 'POST', body: resolution }),
   saveSettings: (settings) => request('/settings', { method: 'PUT', body: settings }),
