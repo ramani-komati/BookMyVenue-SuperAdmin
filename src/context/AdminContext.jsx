@@ -70,6 +70,10 @@ export function AdminProvider({ children }) {
   // Ticketed events. CREATED AND OWNED here — the admin is the only role
   // that can list, edit, publish or retire one.
   const [events, setEvents] = useState([])
+  // Event ticket orders across ALL events, for the main Bookings page. Kept
+  // apart from `bookings` (venue only) because the dashboard, drawers and
+  // payouts sum `bookings` as venue revenue.
+  const [eventOrders, setEventOrders] = useState([])
   const [payoutsList, setPayoutsList] = useState([])
   const [reviews, setReviews] = useState([])
   const [audit, setAudit] = useState([])
@@ -117,6 +121,8 @@ export function AdminProvider({ children }) {
       // omits the key, and the Events page then shows its empty state
       // instead of the whole panel failing to load.
       setEvents(Array.isArray(d.events) ? d.events : [])
+      // Same tolerance for a backend that predates the unified Bookings list.
+      setEventOrders(Array.isArray(d.eventOrders) ? d.eventOrders : [])
       setPayoutsList(d.payouts)
       setReviews(d.reviews)
       setAudit(d.audit)
@@ -226,6 +232,15 @@ export function AdminProvider({ children }) {
     }
   }, [applyEventRow])
 
+  // Server-first like the other event writes: the backend decides whether
+  // the order may go (unpaid only — paid/refunded/mid-checkout are refused
+  // with 409), so the row leaves the list only once the server agrees. The
+  // backend writes its own audit entry; none is added here.
+  const removeEventOrder = useCallback(async (order, reason) => {
+    await adminApi.removeEventOrder(order.eventId, order.id, reason)
+    setEventOrders((prev) => prev.filter((o) => o.id !== order.id))
+  }, [])
+
   const refreshEvents = useCallback(async () => {
     const res = await adminApi.listEvents()
     if (Array.isArray(res?.events)) setEvents(res.events)
@@ -266,6 +281,7 @@ export function AdminProvider({ children }) {
     vendors, updateVendor,
     users, updateUser,
     bookings, updateBooking,
+    eventOrders, removeEventOrder,
     events, createEvent, updateEvent, deleteEvent, refreshEvents, pendingEvents,
     payoutsList, updatePayout,
     reviews, removeReview,

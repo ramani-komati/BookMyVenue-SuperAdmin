@@ -98,6 +98,14 @@ export const adminApi = {
     ).toString()
     return request(`/events/${id}/orders${query ? `?${query}` : ''}`)
   },
+  // Soft-remove an UNPAID booking (failed / cancelled / abandoned). The
+  // backend refuses paid and refunded orders with 409 and checks the order
+  // belongs to this event, so a wrong id cannot remove another booking.
+  // An optional reason is stored on the server-side audit entry.
+  removeEventOrder: (eventId, orderId, reason) => request(
+    `/events/${eventId}/orders/${encodeURIComponent(orderId)}`,
+    { method: 'DELETE', body: reason ? { reason } : undefined },
+  ),
 
   // Image upload -> a permanent public URL (Supabase, the same bucket venue
   // photos use). Used for event posters: the event write endpoints are

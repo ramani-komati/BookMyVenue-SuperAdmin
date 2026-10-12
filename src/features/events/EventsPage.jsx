@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 import EventFormModal from './EventFormModal.jsx'
 import EventOrdersModal from './EventOrdersModal.jsx'
+import { MAX_PROMOTED } from './eventForm.js'
 
 /**
  * EventsPage — the super admin's event management.
@@ -22,6 +23,13 @@ import EventOrdersModal from './EventOrdersModal.jsx'
  *
  * The legacy `pending` / `rejected` statuses are still rendered so events
  * vendors submitted before the change can be cleared out of the queue.
+ *
+ * PROMOTION is a separate switch from publishing: "Promote on homepage" puts
+ * a PUBLISHED event in the customer site's Featured events row; "Remove
+ * promotion" takes it out again without unpublishing or deleting anything.
+ * The backend owns every rule — only live events, at most MAX_PROMOTED at
+ * once, and unpublishing/deleting drops the promotion — and its refusal is
+ * shown verbatim.
  */
 
 const inr = (n) => Number(n || 0).toLocaleString('en-IN')
@@ -44,6 +52,7 @@ const BADGE = {
 
 const TABS = [
   { key: 'live', label: 'Published' },
+  { key: 'promoted', label: 'Promoted' },
   { key: 'draft', label: 'Drafts' },
   { key: 'paused', label: 'Unpublished' },
   { key: 'pending', label: 'Pending' },
@@ -51,6 +60,7 @@ const TABS = [
 ]
 
 const EMPTY_COPY = {
+  promoted: ['Nothing promoted', 'Promote a published event to feature it in the customer home page’s Featured events row.'],
   live: ['Nothing published yet', 'Create an event and publish it — it appears on the customer Events page straight away.'],
   draft: ['No drafts', 'Events you save without publishing wait here.'],
   paused: ['Nothing unpublished', 'Unpublishing hides an event from customers while keeping sold tickets valid.'],
@@ -67,8 +77,17 @@ export default function EventsPage() {
   const [orders, setOrders] = useState(null)   // the event whose bookings are open
   const [busyId, setBusyId] = useState('')
 
+  // Promotion only ever counts for live events (the backend clears it on
+  // anything else), so this is exactly what the customer page can show.
+  const isPromoted = (e) => e.featured && e.status === 'live'
+  const promotedCount = events.filter(isPromoted).length
+
   const rows = useMemo(() => {
-    const list = tab === 'all' ? events : events.filter((e) => e.status === tab)
+    const list = tab === 'all'
+      ? events
+      : tab === 'promoted'
+        ? events.filter((e) => e.featured && e.status === 'live')
+        : events.filter((e) => e.status === tab)
     // Within "All": published first, then anything needing attention, then
     // the rest — the order an admin scans the page in.
     return [...list].sort((a, b) => {
@@ -96,10 +115,23 @@ export default function EventsPage() {
     e, () => updateEvent(e.id, { status: 'publish' }), `${e.name} is now live`,
   )
 
+  const promote = (e) => run(
+    e,
+    () => updateEvent(e.id, { featured: true }),
+    `${e.name} is now featured on the homepage`,
+  )
+
+  const unpromote = (e) => run(
+    e,
+    () => updateEvent(e.id, { featured: false }),
+    `${e.name} removed from the homepage — it stays published`,
+  )
+
   const unpublish = (e) => openModal({
     title: `Unpublish “${e.name}”?`,
     body: 'Customers stop seeing it and no new tickets can be sold. Tickets '
-      + 'already paid for stay valid, and you can publish it again at any time.',
+      + 'already paid for stay valid, and you can publish it again at any time.'
+      + (e.featured ? ' Its homepage promotion is removed too.' : ''),
     confirmLabel: 'Unpublish',
     onConfirm: () => run(
       e, () => updateEvent(e.id, { status: 'unpublish' }), `${e.name} unpublished`,
@@ -137,7 +169,9 @@ export default function EventsPage() {
           {TABS.map((t) => {
             const count = t.key === 'all'
               ? events.length
-              : events.filter((e) => e.status === t.key).length
+              : t.key === 'promoted'
+                ? promotedCount
+                : events.filter((e) => e.status === t.key).length
             return (
               <Button
                 key={t.key}
@@ -153,6 +187,14 @@ export default function EventsPage() {
         <Button variant="navy" size="sm" onClick={() => setForm({})} style={{ flex: '0 0 auto' }}>
           <Icon name="plus" size={16} /> Create event
         </Button>
+      </div>
+
+      <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+        <strong style={{ color: promotedCount >= MAX_PROMOTED ? 'var(--red-600)' : 'var(--text-heading)' }}>
+          {promotedCount} / {MAX_PROMOTED}
+        </strong>
+        {' '}events promoted on the customer homepage
+        {promotedCount >= MAX_PROMOTED && ' — remove one to promote another'}
       </div>
 
       {rows.length === 0 && (
@@ -221,6 +263,11 @@ export default function EventsPage() {
                     <Badge status="neutral" size="sm">Vendor-submitted</Badge>
                   )}
                 </div>
+                {isPromoted(e) && (
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--red-600)', marginTop: 2 }}>
+                    ★ Featured on homepage
+                  </div>
+                )}
                 <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2, overflowWrap: 'anywhere' }}>
                   {e.vendor || 'Organiser not recorded'} · {e.location || '—'}
                 </div>
@@ -254,6 +301,26 @@ export default function EventsPage() {
                   <Button variant="secondary" size="sm" disabled={busy} onClick={() => reject(e)}>
                     Reject
                   </Button>
+                )}
+                {/* Promotion: published events only, separate from publishing. */}
+                {e.status === 'live' && (
+                  isPromoted(e) ? (
+                    <Button variant="secondary" size="sm" disabled={busy} onClick={() => unpromote(e)}>
+                      {busy ? '…' : 'Remove promotion'}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => promote(e)}
+                      title={promotedCount >= MAX_PROMOTED
+                        ? `Up to ${MAX_PROMOTED} events can be promoted — remove one first`
+                        : 'Feature this event on the customer homepage'}
+                    >
+                      {busy ? '…' : '★ Promote'}
+                    </Button>
+                  )
                 )}
                 {e.status === 'live' ? (
                   <Button variant="secondary" size="sm" disabled={busy} onClick={() => unpublish(e)}>

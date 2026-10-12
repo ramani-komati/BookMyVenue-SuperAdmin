@@ -18,6 +18,9 @@ export const MAX_TICKET_TYPES = 8
 export const MAX_CAPACITY = 100000
 export const MAX_TICKET_PRICE = 1000000
 export const MAX_PHOTOS = 8          // matches MAX_GALLERY in events/writes.py
+// Homepage promotion cap — Event.MAX_FEATURED. The BACKEND enforces it (409
+// PROMOTION_LIMIT); this copy only lets the page show "3 / 6 promoted".
+export const MAX_PROMOTED = 6
 
 /** Today in YYYY-MM-DD, local — what `min` on a date input wants. */
 export const todayISO = () => {
@@ -115,6 +118,23 @@ export const eventToForm = (row) => ({
 })
 
 const isBlank = (v) => !String(v ?? '').trim()
+
+// Mirrors events/location.clean_maps_link: Google's share short links, or a
+// google.<tld> URL that is actually a maps page. google.com.evil.example is
+// NOT Google — the host must END in the Google domain.
+const SHORT_MAPS_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl', 'g.co'])
+const GOOGLE_HOST = /^(www\.|maps\.)?google\.(com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/
+export const isGoogleMapsLink = (link) => {
+  try {
+    const u = new URL(String(link || '').trim())
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
+    const host = u.hostname.toLowerCase()
+    if (SHORT_MAPS_HOSTS.has(host)) return true
+    return GOOGLE_HOST.test(host) && (host.startsWith('maps.') || u.pathname.startsWith('/maps'))
+  } catch {
+    return false
+  }
+}
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 
 /**
@@ -129,6 +149,9 @@ export function validateEvent(form) {
   if (isBlank(form.category)) errors.category = 'Pick a category.'
   if (isBlank(form.venueName)) {
     errors.venueName = 'Where is it happening? A venue name is required.'
+  }
+  if (form.mapsLink && !isGoogleMapsLink(form.mapsLink)) {
+    errors.mapsLink = 'Use a Google Maps link, e.g. https://maps.app.goo.gl/… or https://www.google.com/maps/…'
   }
   if (!HHMM.test(String(form.startTime || ''))) errors.startTime = 'Use HH:MM, e.g. 18:00.'
   if (!HHMM.test(String(form.endTime || ''))) errors.endTime = 'Use HH:MM, e.g. 22:00.'

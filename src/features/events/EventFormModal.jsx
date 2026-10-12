@@ -293,13 +293,13 @@ export default function EventFormModal({ event, onClose, onCreate, onUpdate, sho
                   style={errors.venueName ? errorInput : input}
                 />
               </Field>
-              <Field title="Locality">
+              <Field title="Locality" hint="Area customers search by, e.g. Hanamkonda.">
                 <input
                   className="bmva" type="text" value={form.locality}
                   onChange={(e) => set('locality', e.target.value)} style={input}
                 />
               </Field>
-              <Field title="City">
+              <Field title="City" hint="e.g. Warangal. Hanamkonda / Kazipet events show under Warangal too.">
                 <input
                   className="bmva" type="text" value={form.city}
                   onChange={(e) => set('city', e.target.value)} style={input}
@@ -311,10 +311,16 @@ export default function EventFormModal({ event, onClose, onCreate, onUpdate, sho
                   onChange={(e) => set('address', e.target.value)} style={input}
                 />
               </Field>
-              <Field title="Google Maps link">
+              <Field
+                title="Google Maps link"
+                error={errors.mapsLink}
+                hint="Paste the Share link from Google Maps. Shown as a map on the event page."
+              >
                 <input
                   className="bmva" type="url" value={form.mapsLink}
-                  onChange={(e) => set('mapsLink', e.target.value)} style={input}
+                  onChange={(e) => set('mapsLink', e.target.value)}
+                  style={errors.mapsLink ? errorInput : input}
+                  placeholder="https://maps.app.goo.gl/…"
                 />
               </Field>
               <Field title="Start time *" error={errors.startTime} hint="Applies to every date.">
