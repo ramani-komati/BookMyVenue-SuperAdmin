@@ -20,6 +20,16 @@ export const bookingRef = (id) => {
   return '#' + s.replace(/^(bk|wk)_/i, '').slice(-6).toUpperCase()
 }
 
+// The booking ID to SHOW for any row. New event ticket orders have a short
+// 6-character id ("K7M2QX") that IS the booking ID — shown in full as
+// "#K7M2QX". Venue bookings and older event orders ("eo_…") keep the short
+// code derived from their long id, exactly as before.
+const SHORT_ID = /^[A-Z0-9]{6}$/
+export const displayRef = (row) => {
+  const id = String(row?.id || '')
+  return SHORT_ID.test(id) ? '#' + id : bookingRef(id)
+}
+
 // Place line for venue/approval rows — the DISTRICT the vendor selected in
 // the registration wizard is the canonical place; fall back to city, then
 // area, for records from before the backend exposed `district`.

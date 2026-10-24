@@ -29,7 +29,7 @@ export function wakeBackend() {
   fetch(API_BASE.replace(/\/admin$/, '') + '/v1/health', { mode: 'no-cors' }).catch(() => {})
 }
 
-async function request(path, { method = 'GET', body, form } = {}) {
+async function request(path, { method = 'GET', body, form, blob = false } = {}) {
   const res = await fetch(API_BASE + path, {
     method,
     credentials: 'include',
@@ -58,6 +58,7 @@ async function request(path, { method = 'GET', body, form } = {}) {
     err.detail = detail
     throw err
   }
+  if (blob) return res.blob() // file downloads (e.g. the bookings export)
   return res.status === 204 ? null : res.json()
 }
 
@@ -69,6 +70,15 @@ export const adminApi = {
 
   // ---------- reads ----------
   fetchAll: () => request('/bootstrap'),
+  // The Bookings page as an .xlsx, filtered ON THE SERVER with the page's
+  // own filters (type, status, date/basis/from/to/today, q) — see
+  // unifiedBookings.exportParams. Resolves to a Blob.
+  exportBookings: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ''),
+    ).toString()
+    return request(`/bookings/export${query ? `?${query}` : ''}`, { blob: true })
+  },
 
   // Register-venue: mint a vendor JWT for an owner (create the vendor if the
   // phone is new) so the admin can drive the existing vendor registration
@@ -83,6 +93,17 @@ export const adminApi = {
   updateVendor: (id, patch) => request(`/vendors/${id}`, { method: 'PATCH', body: patch }),
   updateUser: (id, patch) => request(`/users/${id}`, { method: 'PATCH', body: patch }),
   updateBooking: (id, patch) => request(`/bookings/${id}`, { method: 'PATCH', body: patch }),
+  // Soft-delete an UNPAID booking from the main Bookings page. The backend
+  // refuses paid, active and refunded rows with 409 and audits the removal
+  // (with the optional reason) itself.
+  deleteBooking: (id, reason) => request(
+    `/bookings/${encodeURIComponent(id)}`,
+    { method: 'DELETE', body: reason ? { reason } : undefined },
+  ),
+  deleteEventOrder: (id, reason) => request(
+    `/event-orders/${encodeURIComponent(id)}`,
+    { method: 'DELETE', body: reason ? { reason } : undefined },
+  ),
   // ---------- ticketed events (admin-owned) ----------
   // Events are a SUPER-ADMIN product: the admin creates, edits, publishes,
   // unpublishes and retires them. Vendors have NO write path — the backend

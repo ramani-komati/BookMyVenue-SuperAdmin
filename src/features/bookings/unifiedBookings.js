@@ -1,24 +1,28 @@
 // The main Bookings page lists TWO kinds of order side by side:
 //   * venue bookings   — /bootstrap `bookings`     (bookings.Booking)
 //   * event tickets    — /bootstrap `eventOrders`  (events.EventOrder)
-// They live in separate tables with separate id spaces ("bk_…" / "eo_…"),
+// They live in separate tables with separate id spaces ("bk_…" / event ids:
+// "K7M2QX", or "eo_…" for older orders),
 // so every row is keyed by kind + id. Pure functions only (no React), so the
 // merge and filter rules are unit-tested in unifiedBookings.test.js.
 
-import { bookingRef } from '../../utils/format.js'
+import { bookingRef, displayRef, fmt } from '../../utils/format.js'
+import { orderBadge } from '../events/orderStatus.js'
 
 export const KIND_LABEL = { venue: 'Venue booking', event: 'Event ticket' }
 
-// Status filter options. Values match each row's `statusKey`: a venue
-// booking's status, or an event order's status as the backend derives it
-// (paid orders read confirmed/completed by the clock, a lapsed unpaid hold
-// reads expired). Each option says which kinds can carry it.
+// Status filter options. Values match each row's `statusKey`: the status as
+// the backend derives it (paid rows read confirmed/completed by the clock)
+// and, for either kind, 'expired' for an unpaid hold whose window lapsed.
+// Each option says which kinds can carry it. Both kinds record a failed
+// payment attempt as 'failed' (venue bookings did so as 'cancelled' before
+// the retry fix, so older failures still read as Cancelled).
 export const STATUS_OPTIONS = [
   { value: 'confirmed', label: 'Confirmed / paid', kinds: ['venue', 'event'] },
   { value: 'completed', label: 'Completed', kinds: ['venue', 'event'] },
-  { value: 'payment_pending', label: 'Awaiting payment', kinds: ['event'] },
-  { value: 'expired', label: 'Abandoned checkout', kinds: ['event'] },
-  { value: 'failed', label: 'Payment failed', kinds: ['event'] },
+  { value: 'payment_pending', label: 'Awaiting payment', kinds: ['venue', 'event'] },
+  { value: 'expired', label: 'Abandoned checkout', kinds: ['venue', 'event'] },
+  { value: 'failed', label: 'Payment failed', kinds: ['venue', 'event'] },
   { value: 'cancelled', label: 'Cancelled', kinds: ['venue', 'event'] },
   { value: 'refund_pending', label: 'Refund pending', kinds: ['venue', 'event'] },
   { value: 'refunded', label: 'Refunded', kinds: ['venue', 'event'] },
@@ -66,7 +70,9 @@ const venueRow = (b) => ({
   ...b,
   kind: 'venue',
   key: `venue:${b.id}`,
-  statusKey: b.status,
+  // The backend flags a lapsed unpaid hold; it is an abandoned checkout,
+  // not someone paying right now (event orders arrive already as 'expired').
+  statusKey: b.status === 'payment_pending' && b.holdExpired ? 'expired' : b.status,
   title: b.venue || '',
 })
 
@@ -105,10 +111,29 @@ export const matchesType = (row, type) => !type || type === 'All' || row.kind ==
 
 export const matchesStatus = (row, status) => !status || status === 'All' || row.statusKey === status
 
-export function matchesDate(row, filterDate, today) {
+// Which date the date filter reads. 'scheduled' (the default, and the page's
+// original behaviour) is the event date / booked slot date; 'created' is the
+// day the booking was made.
+export const DATE_BASIS_OPTIONS = [
+  { value: 'scheduled', label: 'Event / slot date' },
+  { value: 'created', label: 'Booked on' },
+]
+
+// The day a booking was MADE, as "YYYY-MM-DD" in IST — the same calendar the
+// backend export cuts days on, whatever the admin's browser time zone.
+export function createdISO(row) {
+  const t = new Date(row?.createdAt || '')
+  if (Number.isNaN(t.getTime())) return ''
+  return t.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+}
+
+// `range` is { basis, from, to } (ISO days, inclusive, either end optional).
+export function matchesDate(row, filterDate, today, { basis = 'scheduled', from = '', to = '' } = {}) {
   if (!filterDate || filterDate === 'All') return true
-  const d = bookingISO(row)
+  if (filterDate === 'range' && !from && !to) return true
+  const d = basis === 'created' ? createdISO(row) : bookingISO(row)
   if (!d) return false
+  if (filterDate === 'range') return (!from || d >= from) && (!to || d <= to)
   if (filterDate === 'today') return d === today
   if (filterDate === 'upcoming') return d > today
   return d < today // past / "Earlier"
@@ -118,16 +143,70 @@ export function matchesQuery(row, query) {
   const q = String(query || '').trim().toLowerCase()
   if (!q) return true
   const haystack = [
-    row.id, bookingRef(row.id), row.title, row.venue, row.eventName, row.location,
+    row.id, bookingRef(row.id), displayRef(row), row.title, row.venue, row.eventName, row.location,
     row.customer, row.phone, row.razorpayOrderId, row.razorpayPaymentId,
   ].filter(Boolean).join(' ').toLowerCase()
   return haystack.includes(q)
 }
 
-export function filterBookings(rows, { type, status, date, query } = {}, today = '') {
+export function filterBookings(rows, { type, status, date, basis, from, to, query } = {}, today = '') {
   return rows.filter((r) =>
     matchesType(r, type) && matchesStatus(r, status) &&
-    matchesDate(r, date, today) && matchesQuery(r, query))
+    matchesDate(r, date, today, { basis, from, to }) && matchesQuery(r, query))
+}
+
+// Query params for GET /api/admin/bookings/export — the page's filters, sent
+// as-is so the server applies the same rules (adminpanel/exports.py) and the
+// spreadsheet lists exactly the rows on screen. `today` pins today/upcoming/
+// past to the day the page split on.
+export function exportParams({ type, status, date, basis, from, to, query } = {}, today = '') {
+  const params = { type: type || 'All', status: status || 'All', date: date || 'All' }
+  if (params.date !== 'All') {
+    params.basis = basis || 'scheduled'
+    params.today = today
+  }
+  if (params.date === 'range') {
+    if (from) params.from = from
+    if (to) params.to = to
+  }
+  const q = String(query || '').trim()
+  if (q) params.q = q
+  return params
+}
+
+// "bookmyvenues_bookings_2026-10-13.xlsx" — matches the server's filename.
+export const exportFilename = (today) => `bookmyvenues_bookings_${today}.xlsx`
+
+// Venue booking badges, keyed by the status the backend reports.
+const VENUE_BADGE = {
+  confirmed: ['success', 'Confirmed'],
+  completed: ['neutral', 'Completed'],
+  payment_pending: ['pending', 'Awaiting payment'],
+  failed: ['error', 'Payment failed'],
+  cancelled: ['error', 'Cancelled'],
+  refund_pending: ['warning', 'Refund pending'],
+  refunded: ['info', 'Refunded'],
+}
+
+// [badge tone, label] for any unified row. Read from the persisted status
+// only — an unknown value is shown as-is, never coerced into a paid state.
+export function statusBadge(row) {
+  if (row?.kind === 'event') return orderBadge(row)
+  if (row?.statusKey === 'expired') return ['neutral', 'Abandoned checkout']
+  return VENUE_BADGE[row?.status] || ['neutral', row?.status ? String(row.status) : 'Unknown']
+}
+
+// The confirmation shown before deleting one booking. The server enforces
+// the real rule (unpaid only); this just tells the admin what will happen.
+export function deletePrompt(row) {
+  const ref = displayRef(row)
+  const what = row?.kind === 'event'
+    ? `${row.tickets || 0} ticket${row.tickets === 1 ? '' : 's'} for ${row.eventName || 'this event'}`
+    : `booking at ${row?.venue || 'this venue'}`
+  return {
+    title: `Delete booking ${ref}?`,
+    body: `${row?.customer || 'This customer'}'s ${what} (${fmt(row?.amountNum)}, no payment captured) will be removed from the Bookings list and the totals. The record is kept on the server for the audit trail; nothing is refunded or charged.`,
+  }
 }
 
 export function countByKind(rows) {

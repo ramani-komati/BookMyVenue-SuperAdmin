@@ -5,6 +5,7 @@ import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 import { orderBadge } from './orderStatus.js'
+import { displayRef } from '../../utils/format.js'
 
 /**
  * EventOrdersModal — who bought tickets for one event, and whether the money
@@ -71,7 +72,7 @@ export default function EventOrdersModal({ event, onClose }) {
       setActionError(
         err.status === 401 || err.status === 403
           ? 'Your admin session has expired. Sign in again to remove bookings.'
-          : `Could not remove ${order.id}: ${err.message || 'request failed.'}`,
+          : `Could not remove ${displayRef(order)}: ${err.message || 'request failed.'}`,
       )
     } finally {
       setBusyId(null)
@@ -235,7 +236,7 @@ export default function EventOrdersModal({ event, onClose }) {
                     return (
                       <tr key={o.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
                         <td style={{ padding: '11px 14px', fontSize: 13.5, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                          {o.id}
+                          {displayRef(o)}
                         </td>
                         <td style={{ padding: '11px 14px', fontSize: 14.5 }}>
                           <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>
@@ -271,7 +272,7 @@ export default function EventOrdersModal({ event, onClose }) {
                               <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-heading)', lineHeight: 1.4 }}>
                                 Remove this booking?
                                 <div style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>
-                                  {o.id}
+                                  {displayRef(o)}
                                 </div>
                               </div>
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

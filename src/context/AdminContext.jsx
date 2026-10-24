@@ -241,6 +241,20 @@ export function AdminProvider({ children }) {
     setEventOrders((prev) => prev.filter((o) => o.id !== order.id))
   }, [])
 
+  // Delete one row from the main Bookings page — venue booking or event
+  // order. Server-first: the row leaves the list (and the count) only once
+  // the backend has accepted the delete; a refusal or network error throws
+  // and nothing changes locally. The backend writes the audit entry.
+  const deleteBooking = useCallback(async (row, reason) => {
+    if (row.kind === 'event') {
+      await adminApi.deleteEventOrder(row.id, reason)
+      setEventOrders((prev) => prev.filter((o) => o.id !== row.id))
+    } else {
+      await adminApi.deleteBooking(row.id, reason)
+      setBookings((prev) => prev.filter((b) => b.id !== row.id))
+    }
+  }, [])
+
   const refreshEvents = useCallback(async () => {
     const res = await adminApi.listEvents()
     if (Array.isArray(res?.events)) setEvents(res.events)
@@ -281,7 +295,7 @@ export function AdminProvider({ children }) {
     vendors, updateVendor,
     users, updateUser,
     bookings, updateBooking,
-    eventOrders, removeEventOrder,
+    eventOrders, removeEventOrder, deleteBooking,
     events, createEvent, updateEvent, deleteEvent, refreshEvents, pendingEvents,
     payoutsList, updatePayout,
     reviews, removeReview,

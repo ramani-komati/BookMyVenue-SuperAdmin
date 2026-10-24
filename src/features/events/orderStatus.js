@@ -23,5 +23,10 @@ export function orderBadge(order) {
   if (order?.paymentStatus === 'payment_pending' && order?.status === 'expired') {
     return ['neutral', 'Abandoned checkout']
   }
+  // A PAID order whose show has ended — the backend derives 'completed' only
+  // from a confirmed order, the same rule venue bookings follow.
+  if (order?.paymentStatus === 'confirmed' && order?.status === 'completed') {
+    return ['neutral', 'Completed']
+  }
   return PAYMENT_BADGE[order?.paymentStatus] || ['neutral', order?.paymentStatus || 'Unknown']
 }

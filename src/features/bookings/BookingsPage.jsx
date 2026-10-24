@@ -1,26 +1,32 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { Download } from 'lucide-react'
 import { useAdmin } from '../../context/AdminContext.jsx'
+import { adminApi } from '../../services/adminApi.js'
 import useViewport from '../../hooks/useViewport.js'
-import { bookingRef, fmt, statusMeta } from '../../utils/format.js'
+import { bookingRef, displayRef, fmt } from '../../utils/format.js'
 import { displayInclusiveEnd, localTodayISO } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
-import { orderBadge } from '../events/orderStatus.js'
-import { KIND_LABEL, STATUS_OPTIONS, countByKind, filterBookings, unifyBookings } from './unifiedBookings.js'
-
-const BK_META = {
-  confirmed: ['success', 'Confirmed'],
-  completed: ['neutral', 'Completed'],
-  cancelled: ['error', 'Cancelled'],
-  refund_pending: ['warning', 'Refund pending'],
-  refunded: ['info', 'Refunded'],
-}
+import { DATE_BASIS_OPTIONS, KIND_LABEL, STATUS_OPTIONS, countByKind, deletePrompt, exportFilename, exportParams, filterBookings, statusBadge, unifyBookings } from './unifiedBookings.js'
 
 const selectStyle = {
   fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, color: 'var(--text-heading)',
   minHeight: 40, padding: '0 12px', background: 'var(--surface-card)',
   border: '1px solid var(--border-default)', borderRadius: 10, cursor: 'pointer',
+}
+const dateInputStyle = { ...selectStyle, fontWeight: 500, cursor: 'text' }
+
+// Save a Blob as a file via a temporary object URL.
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 // "12 Oct 2026" for an event order's ISO date.
@@ -46,12 +52,26 @@ function KindChip({ kind }) {
   )
 }
 
+// Delete action for one booking of either kind. Shown only when the backend
+// says the row may go (unpaid); otherwise the server's reason is shown
+// instead. The backend re-checks on delete, so this is guidance, not the rule.
+function DeleteAction({ row, compact, onDelete }) {
+  if (row.removable) {
+    return <Button variant="secondary" size="sm" block={compact} onClick={() => onDelete(row)}>Delete booking</Button>
+  }
+  if (!row.removeBlockedReason) return null
+  return (
+    <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.4, maxWidth: compact ? 'none' : 220 }}>
+      {row.removeBlockedReason}
+    </div>
+  )
+}
+
 // Expanded panel for an event ticket order: tickets, fee, payment record and
-// the (server-guarded) remove action.
-function EventOrderDetails({ o, compact, onRemove }) {
+// the (server-guarded) delete action.
+function EventOrderDetails({ o, compact, onDelete }) {
   const line = { display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: compact ? 15 : 16 }
   const strong = { fontWeight: 700, color: 'var(--text-heading)' }
-  const canRemove = o.removable && !!o.eventId
   return (
     <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', gap: compact ? 10 : 24, alignItems: compact ? 'stretch' : 'flex-start', background: '#F4EAE5', borderRadius: 12, padding: compact ? 14 : 18, margin: compact ? 0 : '0 12px 12px' }}>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -67,26 +87,21 @@ function EventOrderDetails({ o, compact, onRemove }) {
           <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>Total</span>
           <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(o.amount)}</span>
         </div>
-        {!o.paid && (
+        {!o.paid && !o.razorpayPaymentId && (
           <div style={{ fontSize: 13.5, color: 'var(--warning-600)', fontWeight: 700 }}>
             No captured payment is recorded for this order — it is not counted as revenue.
           </div>
         )}
         <div style={{ fontSize: 13.5, color: 'var(--text-muted)', overflowWrap: 'anywhere', lineHeight: 1.5 }}>
-          Order ID <span style={{ fontFamily: 'monospace' }}>{o.id}</span>
+          Booking ID <span style={{ fontFamily: 'monospace' }}>{displayRef(o)}</span>
+          {' '}· Order ID <span style={{ fontFamily: 'monospace' }}>{o.id}</span>
           {o.razorpayOrderId && <> · Gateway order <span style={{ fontFamily: 'monospace' }}>{o.razorpayOrderId}</span></>}
           {o.razorpayPaymentId && <> · Payment <span style={{ fontFamily: 'monospace' }}>{o.razorpayPaymentId}</span></>}
           {o.refundReason && <> · Refund reason: {o.refundReason}</>}
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: compact ? 'none' : 220 }}>
-        {canRemove ? (
-          <Button variant="secondary" size="sm" block={compact} onClick={() => onRemove(o)}>Remove order</Button>
-        ) : (
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-            {o.removable ? 'This order is no longer linked to an event, so it cannot be removed here.' : (o.removeBlockedReason || 'Cannot be removed.')}
-          </div>
-        )}
+        <DeleteAction row={o} compact={compact} onDelete={onDelete} />
       </div>
     </div>
   )
@@ -95,7 +110,7 @@ function EventOrderDetails({ o, compact, onRemove }) {
 const GRID = { display: 'grid', gridTemplateColumns: '120px 1.5fr 1.1fr 1.3fr 110px 95px 150px', minWidth: 1040, gap: 10 }
 
 export default function BookingsPage() {
-  const { bookings, updateBooking, eventOrders, removeEventOrder, openModal, logAudit, showToast, settings } = useAdmin()
+  const { bookings, updateBooking, eventOrders, deleteBooking, openModal, logAudit, showToast, settings } = useAdmin()
   // Per-row: the booking's own frozen fee (what was actually charged) wins;
   // the current platform fee is only the fallback for older records.
   const rowFee = (b) => '₹' + (b.fee != null && Number.isFinite(Number(b.fee)) ? Number(b.fee) : Number(settings?.fee) || 20)
@@ -115,7 +130,13 @@ export default function BookingsPage() {
   const [filterType, setFilterType] = useState('All')
   const [filterStatus, setFilterStatus] = useState('All')
   const [filterDate, setFilterDate] = useState('All')
+  // What the date filter reads (event/slot date or booked-on date) and the
+  // custom range's inclusive ends.
+  const [dateBasis, setDateBasis] = useState('scheduled')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [query, setQuery] = useState('')
+  const [exporting, setExporting] = useState(false)
   // Rows are keyed "venue:<id>" / "event:<id>" — the two tables have separate
   // id spaces. Deep links (activity feed / user drawer) carry a VENUE id.
   const [expandedId, setExpandedId] = useState(location.state?.expandId ? `venue:${location.state.expandId}` : null)
@@ -146,26 +167,48 @@ export default function BookingsPage() {
       unit: b.unitLabel || (hasSep ? full.split(' — ').slice(1).join(' — ') : ''),
     }
   }
-  const filtered = filterBookings(rows, { type: filterType, status: filterStatus, date: filterDate, query }, today)
+  const filters = { type: filterType, status: filterStatus, date: filterDate, basis: dateBasis, from: dateFrom, to: dateTo, query }
+  const filtered = filterBookings(rows, filters, today)
   const counts = countByKind(filtered)
+  const rangeInvalid = filterDate === 'range' && dateFrom && dateTo && dateFrom > dateTo
 
-  // Remove an UNPAID event order. The server re-checks everything (paid,
-  // refunded and mid-checkout orders are refused; the order must belong to
-  // its event), so this confirmation is a guard against slips, not the rule.
-  const removeOrder = (o) => openModal({
-    title: `Remove order ${o.id}?`,
-    body: `${o.customer || 'This customer'}'s ${o.tickets} ticket${o.tickets === 1 ? '' : 's'} for ${o.eventName || 'this event'} (${fmt(o.amount)}, no payment captured) will be removed from the Bookings lists. The record is kept on the server for the audit trail; nothing is refunded or charged.`,
-    confirmLabel: 'Remove order', danger: true, needsReason: true,
+  // Download the rows on screen as .xlsx. The SERVER applies the same
+  // filters (it never sends the whole table for the browser to sift), so
+  // the file holds exactly the matching bookings.
+  const exportExcel = () => {
+    if (exporting) return
+    setExporting(true)
+    adminApi.exportBookings(exportParams(filters, today))
+      .then((blob) => {
+        saveBlob(blob, exportFilename(today))
+        showToast(`Exported ${filtered.length} booking${filtered.length === 1 ? '' : 's'} to Excel`)
+      })
+      .catch((err) => showToast(
+        err.status === 401 || err.status === 403
+          ? 'Your admin session has expired. Sign in again to export bookings.'
+          : `Could not export bookings: ${err.message || 'request failed'}`,
+      ))
+      .finally(() => setExporting(false))
+  }
+
+  // Delete an UNPAID booking of either kind. The server re-checks everything
+  // (paid, active, refunded and mid-checkout rows are refused), so this
+  // confirmation is a guard against slips, not the rule. Cancelling the
+  // dialog does nothing; the row leaves the list only after the API agrees.
+  const confirmDelete = (row) => openModal({
+    ...deletePrompt(row),
+    confirmLabel: 'Delete booking', danger: true, needsReason: true,
     onConfirm: (reason) => {
-      removeEventOrder(o, reason)
+      const ref = displayRef(row)
+      deleteBooking(row, reason)
         .then(() => {
-          setExpandedId((k) => (k === o.key ? null : k))
-          showToast(`Order ${o.id} removed`)
+          setExpandedId((k) => (k === row.key ? null : k))
+          showToast(`Booking ${ref} deleted`)
         })
         .catch((err) => showToast(
           err.status === 401 || err.status === 403
-            ? 'Your admin session has expired. Sign in again to remove orders.'
-            : `Could not remove ${o.id}: ${err.message || 'request failed'}`,
+            ? 'Your admin session has expired. Sign in again to delete bookings.'
+            : `Could not delete ${ref}: ${err.message || 'request failed'}`,
         ))
     },
   })
@@ -201,12 +244,31 @@ export default function BookingsPage() {
           <option value="All">Status: All</option>
           {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select value={filterDate} onChange={(e) => setFilterDate(e.target.value)} style={selectStyle}>
+        <select value={filterDate} onChange={(e) => setFilterDate(e.target.value)} style={selectStyle} aria-label="Dates">
           <option value="All">Dates: All</option>
           <option value="today">Today</option>
           <option value="upcoming">Upcoming</option>
           <option value="past">Earlier</option>
+          <option value="range">Custom range…</option>
         </select>
+        {filterDate !== 'All' && (
+          <select value={dateBasis} onChange={(e) => setDateBasis(e.target.value)} style={selectStyle} aria-label="Date to filter by">
+            {DATE_BASIS_OPTIONS.map((o) => <option key={o.value} value={o.value}>By: {o.label}</option>)}
+          </select>
+        )}
+        {filterDate === 'range' && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)}
+              style={dateInputStyle} aria-label="Start date" title="Start date"
+            />
+            <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>to</span>
+            <input
+              type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)}
+              style={dateInputStyle} aria-label="End date" title="End date"
+            />
+          </div>
+        )}
         <input
           className="bmva" type="text" placeholder="Search ID, venue, event or customer…" value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -217,19 +279,36 @@ export default function BookingsPage() {
           {filtered.length} booking{filtered.length === 1 ? '' : 's'}
           {filterType === 'All' && filtered.length > 0 && ` · ${counts.venue} venue · ${counts.event} event`}
         </div>
+        <Button
+          variant="secondary" size="sm" onClick={exportExcel}
+          disabled={exporting || rangeInvalid || filtered.length === 0}
+          style={{ minHeight: 40 }}
+        >
+          <Download size={17} strokeWidth={2.2} aria-hidden="true" />
+          {exporting ? 'Exporting…' : 'Export Excel'}
+        </Button>
       </div>
+      {filterDate !== 'All' && (
+        <div style={{ fontSize: 13.5, color: rangeInvalid ? 'var(--error-600)' : 'var(--text-muted)', marginTop: -4 }}>
+          {rangeInvalid
+            ? 'The start date is after the end date.'
+            : dateBasis === 'created'
+              ? 'Dates filter by the day the booking was made (IST).'
+              : 'Dates filter by the event date for event tickets and the booked slot date for venue bookings.'}
+        </div>
+      )}
 
       {compact ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtered.map((b) => {
             if (b.kind === 'event') {
-              const [tone, text] = orderBadge(b)
+              const [tone, text] = statusBadge(b)
               const expanded = expandedId === b.key
               return (
                 <div key={b.key} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div onClick={() => setExpandedId(expanded ? null : b.key)} style={{ display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 800, color: 'var(--text-heading)', fontSize: 14, fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{b.id}</span>
+                      <span style={{ fontWeight: 800, color: 'var(--text-heading)', fontSize: 15.5 }}>{displayRef(b)}</span>
                       <KindChip kind="event" />
                       <span style={{ flex: 1 }} />
                       <Badge status={tone} size="sm">{text}</Badge>
@@ -244,11 +323,11 @@ export default function BookingsPage() {
                       <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-muted)' }}>{expanded ? 'Hide details ▲' : 'View details ▼'}</span>
                     </div>
                   </div>
-                  {expanded && <EventOrderDetails o={b} compact onRemove={removeOrder} />}
+                  {expanded && <EventOrderDetails o={b} compact onDelete={confirmDelete} />}
                 </div>
               )
             }
-            const [badge, label] = statusMeta(BK_META, b.status)
+            const [badge, label] = statusBadge(b)
             const expanded = expandedId === b.key
             const canRefund = b.status === 'confirmed' || b.status === 'refund_pending'
             return (
@@ -298,6 +377,7 @@ export default function BookingsPage() {
                     {canRefund && (
                       <Button variant="secondary" size="sm" block onClick={() => refund(b)}>Issue refund</Button>
                     )}
+                    <DeleteAction row={b} compact onDelete={confirmDelete} />
                   </div>
                 )}
               </div>
@@ -315,7 +395,7 @@ export default function BookingsPage() {
 
         {filtered.map((b) => {
           if (b.kind === 'event') {
-            const [tone, text] = orderBadge(b)
+            const [tone, text] = statusBadge(b)
             const expanded = expandedId === b.key
             return (
               <div key={b.key} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--neutral-100)', minWidth: 1040 }}>
@@ -325,7 +405,7 @@ export default function BookingsPage() {
                   style={{ ...GRID, padding: '16px 12px', fontSize: 16, alignItems: 'center', cursor: 'pointer' }}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, color: 'var(--text-heading)', fontFamily: 'monospace', fontSize: 13, overflowWrap: 'anywhere' }}>{b.id}</div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{displayRef(b)}</div>
                     <KindChip kind="event" />
                   </div>
                   <div style={{ minWidth: 0 }}>
@@ -341,11 +421,11 @@ export default function BookingsPage() {
                   <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{methodLabel(b.method)}</div>
                   <div><Badge status={tone} size="sm">{text}</Badge></div>
                 </div>
-                {expanded && <EventOrderDetails o={b} onRemove={removeOrder} />}
+                {expanded && <EventOrderDetails o={b} onDelete={confirmDelete} />}
               </div>
             )
           }
-          const [badge, label] = statusMeta(BK_META, b.status)
+          const [badge, label] = statusBadge(b)
           const expanded = expandedId === b.key
           const canRefund = b.status === 'confirmed' || b.status === 'refund_pending'
           return (
@@ -398,8 +478,13 @@ export default function BookingsPage() {
                       </div>
                     )}
                   </div>
-                  {canRefund && (
-                    <Button variant="secondary" size="sm" onClick={() => refund(b)}>Issue refund</Button>
+                  {(canRefund || b.removable || b.removeBlockedReason) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 220 }}>
+                      {canRefund && (
+                        <Button variant="secondary" size="sm" onClick={() => refund(b)}>Issue refund</Button>
+                      )}
+                      <DeleteAction row={b} onDelete={confirmDelete} />
+                    </div>
                   )}
                 </div>
               )}
