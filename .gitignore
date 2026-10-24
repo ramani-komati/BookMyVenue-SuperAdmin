@@ -1,14 +1,31 @@
-node_modules
-dist
-dev.log
-*.local
 
-# Environment files (commit only .env.example)
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+.vercel/
+coverage/
+
+# Logs
+*.log
+dev.log
+
+# Environment files — never commit secrets
 .env
+.env.*
+!.env.example
 
 # Local tooling / caches
 .vite/
 
-# OS cruft
-Thumbs.db
+# Editor / OS
+.vscode/
+.idea/
 .DS_Store
+Thumbs.db
+
+# Temporary local files
+*.local

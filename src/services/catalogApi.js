@@ -19,3 +19,20 @@ export const catalogApi = {
     }
   },
 }
+
+/**
+ * The canonical event categories (Navaratri, Dandiya, …) the backend will
+ * accept. Read from the PUBLIC config so the admin event form offers exactly
+ * what the API canonicalises, instead of a hard-coded copy that drifts.
+ * Returns [] on failure — the form then falls back to a free-text category.
+ */
+export async function fetchEventCategories() {
+  try {
+    const res = await fetch(`${API_BASE}/config`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.isArray(data?.eventCategories) ? data.eventCategories : []
+  } catch {
+    return []
+  }
+}

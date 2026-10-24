@@ -29,20 +29,36 @@ export function wakeBackend() {
   fetch(API_BASE.replace(/\/admin$/, '') + '/v1/health', { mode: 'no-cors' }).catch(() => {})
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+async function request(path, { method = 'GET', body, form, blob = false } = {}) {
   const res = await fetch(API_BASE + path, {
     method,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers: form
+      // Multipart MUST NOT set Content-Type by hand (the browser adds the
+      // boundary). X-Requested-With is REQUIRED by the backend upload view:
+      // admin writes are CSRF-exempt, and a multipart POST is CORS-"simple"
+      // so it is never preflighted — a custom header is what forces the
+      // preflight and brings the origin allowlist back into play.
+      ? { 'X-Requested-With': 'XMLHttpRequest' }
+      : { 'Content-Type': 'application/json' },
+    body: form || (body !== undefined ? JSON.stringify(body) : undefined),
   })
   if (!res.ok) {
     let message = `Request failed (${res.status})`
-    try { message = (await res.json()).detail || message } catch { /* non-JSON error body */ }
+    let detail = null
+    try {
+      detail = await res.json()
+      message = detail.detail || message
+    } catch { /* non-JSON error body */ }
     const err = new Error(message)
     err.status = res.status // callers branch on 401/403 (session expired → sign-in)
+    // The events API answers a refused publish/delete with a code and
+    // sometimes the row itself; the page needs both to explain what happened.
+    err.code = detail?.code || ''
+    err.detail = detail
     throw err
   }
+  if (blob) return res.blob() // file downloads (e.g. the bookings export)
   return res.status === 204 ? null : res.json()
 }
 
@@ -54,6 +70,15 @@ export const adminApi = {
 
   // ---------- reads ----------
   fetchAll: () => request('/bootstrap'),
+  // The Bookings page as an .xlsx, filtered ON THE SERVER with the page's
+  // own filters (type, status, date/basis/from/to/today, q) — see
+  // unifiedBookings.exportParams. Resolves to a Blob.
+  exportBookings: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ''),
+    ).toString()
+    return request(`/bookings/export${query ? `?${query}` : ''}`, { blob: true })
+  },
 
   // Register-venue: mint a vendor JWT for an owner (create the vendor if the
   // phone is new) so the admin can drive the existing vendor registration
@@ -68,6 +93,49 @@ export const adminApi = {
   updateVendor: (id, patch) => request(`/vendors/${id}`, { method: 'PATCH', body: patch }),
   updateUser: (id, patch) => request(`/users/${id}`, { method: 'PATCH', body: patch }),
   updateBooking: (id, patch) => request(`/bookings/${id}`, { method: 'PATCH', body: patch }),
+  // Soft-delete an UNPAID booking from the main Bookings page. The backend
+  // refuses paid, active and refunded rows with 409 and audits the removal
+  // (with the optional reason) itself.
+  deleteBooking: (id, reason) => request(
+    `/bookings/${encodeURIComponent(id)}`,
+    { method: 'DELETE', body: reason ? { reason } : undefined },
+  ),
+  deleteEventOrder: (id, reason) => request(
+    `/event-orders/${encodeURIComponent(id)}`,
+    { method: 'DELETE', body: reason ? { reason } : undefined },
+  ),
+  // ---------- ticketed events (admin-owned) ----------
+  // Events are a SUPER-ADMIN product: the admin creates, edits, publishes,
+  // unpublishes and retires them. Vendors have NO write path — the backend
+  // refuses their writes with 403, so this is not merely a hidden button.
+  listEvents: () => request('/events'),
+  createEvent: (payload) => request('/events', { method: 'POST', body: payload }),
+  updateEvent: (id, patch) => request(`/events/${id}`, { method: 'PATCH', body: patch }),
+  deleteEvent: (id) => request(`/events/${id}`, { method: 'DELETE' }),
+  // Who bought tickets for one event, and whether they actually paid.
+  getEventOrders: (id, params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ''),
+    ).toString()
+    return request(`/events/${id}/orders${query ? `?${query}` : ''}`)
+  },
+  // Soft-remove an UNPAID booking (failed / cancelled / abandoned). The
+  // backend refuses paid and refunded orders with 409 and checks the order
+  // belongs to this event, so a wrong id cannot remove another booking.
+  // An optional reason is stored on the server-side audit entry.
+  removeEventOrder: (eventId, orderId, reason) => request(
+    `/events/${eventId}/orders/${encodeURIComponent(orderId)}`,
+    { method: 'DELETE', body: reason ? { reason } : undefined },
+  ),
+
+  // Image upload -> a permanent public URL (Supabase, the same bucket venue
+  // photos use). Used for event posters: the event write endpoints are
+  // JSON-only by design, so the file goes up here and arrives there as a URL.
+  uploadImage: (file) => {
+    const form = new FormData()
+    form.append('image', file)
+    return request('/uploads', { method: 'POST', form })
+  },
   updatePayout: (id, patch) => request(`/payouts/${id}`, { method: 'PATCH', body: patch }),
   resolveReview: (id, resolution) => request(`/reviews/${id}/resolve`, { method: 'POST', body: resolution }),
   saveSettings: (settings) => request('/settings', { method: 'PUT', body: settings }),

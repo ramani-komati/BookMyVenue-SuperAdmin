@@ -67,6 +67,13 @@ export function AdminProvider({ children }) {
   const [vendors, setVendors] = useState([])
   const [users, setUsers] = useState([])
   const [bookings, setBookings] = useState([])
+  // Ticketed events. CREATED AND OWNED here — the admin is the only role
+  // that can list, edit, publish or retire one.
+  const [events, setEvents] = useState([])
+  // Event ticket orders across ALL events, for the main Bookings page. Kept
+  // apart from `bookings` (venue only) because the dashboard, drawers and
+  // payouts sum `bookings` as venue revenue.
+  const [eventOrders, setEventOrders] = useState([])
   const [payoutsList, setPayoutsList] = useState([])
   const [reviews, setReviews] = useState([])
   const [audit, setAudit] = useState([])
@@ -110,6 +117,12 @@ export function AdminProvider({ children }) {
       setVendors(d.vendors)
       setUsers(d.users)
       setBookings(d.bookings)
+      // Tolerate a backend that predates events — an older deploy simply
+      // omits the key, and the Events page then shows its empty state
+      // instead of the whole panel failing to load.
+      setEvents(Array.isArray(d.events) ? d.events : [])
+      // Same tolerance for a backend that predates the unified Bookings list.
+      setEventOrders(Array.isArray(d.eventOrders) ? d.eventOrders : [])
       setPayoutsList(d.payouts)
       setReviews(d.reviews)
       setAudit(d.audit)
@@ -177,6 +190,75 @@ export function AdminProvider({ children }) {
     setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)))
     sync(adminApi.updateBooking(id, patch))
   }, [sync])
+  // ---------- events: server-first, NOT optimistic ----------
+  // Every other entity here is patched locally and synced in the background,
+  // which is fine for a status flip. Events are different: create mints a
+  // row only the server can build (id, slug, ticket-type rows), and a write
+  // can be REFUSED for reasons only the server knows — a date that already
+  // has tickets sold cannot shrink, an incomplete event cannot be published.
+  // Painting those changes locally first would show the admin an event that
+  // does not exist. So these await the response and return its error, and
+  // the page surfaces it instead of a "saved locally" toast that lies.
+  const applyEventRow = useCallback((row) => {
+    if (!row?.id) return
+    setEvents((prev) => {
+      const exists = prev.some((e) => e.id === row.id)
+      return exists ? prev.map((e) => (e.id === row.id ? row : e)) : [row, ...prev]
+    })
+  }, [])
+
+  const createEvent = useCallback(async (payload) => {
+    const res = await adminApi.createEvent(payload)
+    applyEventRow(res?.event)
+    return res?.event
+  }, [applyEventRow])
+
+  const updateEvent = useCallback(async (id, patch) => {
+    const res = await adminApi.updateEvent(id, patch)
+    applyEventRow(res?.event)
+    return res?.event
+  }, [applyEventRow])
+
+  const deleteEvent = useCallback(async (id) => {
+    try {
+      await adminApi.deleteEvent(id)
+      setEvents((prev) => prev.filter((e) => e.id !== id))
+      return { deleted: true }
+    } catch (err) {
+      // Refused because tickets are sold: the server unpublished it instead
+      // and hands back the updated row. Reflect THAT, not the delete.
+      if (err.code === 'HAS_SALES' && err.detail?.event) applyEventRow(err.detail.event)
+      throw err
+    }
+  }, [applyEventRow])
+
+  // Server-first like the other event writes: the backend decides whether
+  // the order may go (unpaid only — paid/refunded/mid-checkout are refused
+  // with 409), so the row leaves the list only once the server agrees. The
+  // backend writes its own audit entry; none is added here.
+  const removeEventOrder = useCallback(async (order, reason) => {
+    await adminApi.removeEventOrder(order.eventId, order.id, reason)
+    setEventOrders((prev) => prev.filter((o) => o.id !== order.id))
+  }, [])
+
+  // Delete one row from the main Bookings page — venue booking or event
+  // order. Server-first: the row leaves the list (and the count) only once
+  // the backend has accepted the delete; a refusal or network error throws
+  // and nothing changes locally. The backend writes the audit entry.
+  const deleteBooking = useCallback(async (row, reason) => {
+    if (row.kind === 'event') {
+      await adminApi.deleteEventOrder(row.id, reason)
+      setEventOrders((prev) => prev.filter((o) => o.id !== row.id))
+    } else {
+      await adminApi.deleteBooking(row.id, reason)
+      setBookings((prev) => prev.filter((b) => b.id !== row.id))
+    }
+  }, [])
+
+  const refreshEvents = useCallback(async () => {
+    const res = await adminApi.listEvents()
+    if (Array.isArray(res?.events)) setEvents(res.events)
+  }, [])
   const updatePayout = useCallback((id, patch) => {
     setPayoutsList((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
     sync(adminApi.updatePayout(id, patch))
@@ -203,6 +285,7 @@ export function AdminProvider({ children }) {
   }, [])
 
   const pendingApprovals = approvals.filter((a) => a.status === 'pending')
+  const pendingEvents = events.filter((e) => e.status === 'pending')
 
   const value = {
     authed, setAuthed, admin,
@@ -212,6 +295,8 @@ export function AdminProvider({ children }) {
     vendors, updateVendor,
     users, updateUser,
     bookings, updateBooking,
+    eventOrders, removeEventOrder, deleteBooking,
+    events, createEvent, updateEvent, deleteEvent, refreshEvents, pendingEvents,
     payoutsList, updatePayout,
     reviews, removeReview,
     audit, logAudit,

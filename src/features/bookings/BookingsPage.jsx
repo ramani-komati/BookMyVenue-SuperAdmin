@@ -1,74 +1,122 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { Download } from 'lucide-react'
 import { useAdmin } from '../../context/AdminContext.jsx'
+import { adminApi } from '../../services/adminApi.js'
 import useViewport from '../../hooks/useViewport.js'
-import { bookingRef, fmt, statusMeta } from '../../utils/format.js'
+import { bookingRef, displayRef, fmt } from '../../utils/format.js'
 import { displayInclusiveEnd, localTodayISO } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
-
-const BK_META = {
-  confirmed: ['success', 'Confirmed'],
-  completed: ['neutral', 'Completed'],
-  cancelled: ['error', 'Cancelled'],
-  refund_pending: ['warning', 'Refund pending'],
-  refunded: ['info', 'Refunded'],
-}
-
-const MONTHS = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' }
-
-// The booking's calendar date as "YYYY-MM-DD" for date filtering. Prefers the
-// backend's ISO `date` (the event date) — authoritative, with the year — and
-// only falls back to reading day+month out of the display slot string
-// ("21 Sep, 18:00 – 19:00" or "Sep 21 · …") when that field is absent. Returns
-// '' only when no date can be read at all (such rows appear under "All dates").
-function bookingISO(b, now = new Date()) {
-  // An explicit ISO event date wins — it carries the year, so no guessing.
-  const isoDate = String(b?.date || '').match(/(\d{4})-(\d{2})-(\d{2})/)
-  if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`
-  // Fallback: the display slot string has a day + month but NO year.
-  const s = String(b?.slot || '')
-  const dayMon = s.match(/\b(\d{1,2})\s+([A-Za-z]{3})/) // "21 Sep"
-  const monDay = s.match(/\b([A-Za-z]{3})\w*\s+(\d{1,2})\b/) // "Sep 21"
-  let d, mon
-  if (dayMon && MONTHS[dayMon[2].toLowerCase()]) { d = Number(dayMon[1]); mon = MONTHS[dayMon[2].toLowerCase()] }
-  else if (monDay && MONTHS[monDay[1].toLowerCase()]) { d = Number(monDay[2]); mon = MONTHS[monDay[1].toLowerCase()] }
-  else return ''
-  const monthIdx = Number(mon) - 1
-  // Infer the missing YEAR by anchoring to when the booking was CREATED: an
-  // event falls on or after its creation day, so it's the first occurrence of
-  // this day/month on or after createdAt (this also wraps Dec→Jan correctly and
-  // never drags a year-old booking forward into "today"/"upcoming").
-  const created = b?.createdAt ? new Date(b.createdAt) : null
-  if (created && !Number.isNaN(created.getTime())) {
-    let y = created.getFullYear()
-    if (new Date(y, monthIdx, d) < new Date(y, created.getMonth(), created.getDate())) y += 1
-    return `${y}-${mon}-${String(d).padStart(2, '0')}`
-  }
-  // Last resort (no creation date): nearest year to today across prev/this/next.
-  const y0 = now.getFullYear()
-  const best = [y0 - 1, y0, y0 + 1]
-    .map((y) => new Date(y, monthIdx, d))
-    .reduce((a, c) => (Math.abs(c - now) < Math.abs(a - now) ? c : a))
-  return `${best.getFullYear()}-${mon}-${String(d).padStart(2, '0')}`
-}
+import { DATE_BASIS_OPTIONS, KIND_LABEL, STATUS_OPTIONS, countByKind, deletePrompt, exportFilename, exportParams, filterBookings, statusBadge, unifyBookings } from './unifiedBookings.js'
 
 const selectStyle = {
   fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, color: 'var(--text-heading)',
   minHeight: 40, padding: '0 12px', background: 'var(--surface-card)',
   border: '1px solid var(--border-default)', borderRadius: 10, cursor: 'pointer',
 }
+const dateInputStyle = { ...selectStyle, fontWeight: 500, cursor: 'text' }
+
+// Save a Blob as a file via a temporary object URL.
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// "12 Oct 2026" for an event order's ISO date.
+const dateLabel = (iso) => {
+  if (!iso) return '—'
+  const d = new Date(`${iso}T00:00`)
+  return Number.isNaN(d.getTime()) ? String(iso)
+    : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+const eventWhen = (o) => dateLabel(o.date) + (o.startTime ? ` · ${o.startTime}${o.endTime ? ` – ${o.endTime}` : ''}` : '')
+const ticketSummary = (o) => (o.items || []).map((i) => `${i.qty}× ${i.label}`).join(', ')
+
+// Small "Venue booking" / "Event ticket" chip under the reference.
+function KindChip({ kind }) {
+  const event = kind === 'event'
+  return (
+    <span style={{
+      display: 'inline-block', marginTop: 4, fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
+      padding: '2px 8px', borderRadius: 999,
+      color: event ? 'var(--status-info-fg)' : 'var(--navy-600)',
+      background: event ? 'var(--status-info-bg)' : 'var(--navy-50)',
+    }}>{KIND_LABEL[kind]}</span>
+  )
+}
+
+// Delete action for one booking of either kind. Shown only when the backend
+// says the row may go (unpaid); otherwise the server's reason is shown
+// instead. The backend re-checks on delete, so this is guidance, not the rule.
+function DeleteAction({ row, compact, onDelete }) {
+  if (row.removable) {
+    return <Button variant="secondary" size="sm" block={compact} onClick={() => onDelete(row)}>Delete booking</Button>
+  }
+  if (!row.removeBlockedReason) return null
+  return (
+    <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.4, maxWidth: compact ? 'none' : 220 }}>
+      {row.removeBlockedReason}
+    </div>
+  )
+}
+
+// Expanded panel for an event ticket order: tickets, fee, payment record and
+// the (server-guarded) delete action.
+function EventOrderDetails({ o, compact, onDelete }) {
+  const line = { display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: compact ? 15 : 16 }
+  const strong = { fontWeight: 700, color: 'var(--text-heading)' }
+  return (
+    <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', gap: compact ? 10 : 24, alignItems: compact ? 'stretch' : 'flex-start', background: '#F4EAE5', borderRadius: 12, padding: compact ? 14 : 18, margin: compact ? 0 : '0 12px 12px' }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>Tickets</div>
+        {(o.items || []).map((i) => (
+          <div key={i.key || i.label} style={line}>
+            <span>{i.qty}× {i.label}{i.price != null ? ` @ ${fmt(i.price)}` : ''}</span>
+            <span style={strong}>{fmt(i.subtotal != null ? i.subtotal : (Number(i.qty) || 0) * (Number(i.price) || 0))}</span>
+          </div>
+        ))}
+        <div style={line}><span>Platform fee</span><span style={strong}>{fmt(o.fee)}</span></div>
+        <div style={{ ...line, borderTop: '1px solid var(--border-subtle)', paddingTop: 7 }}>
+          <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>Total</span>
+          <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(o.amount)}</span>
+        </div>
+        {!o.paid && !o.razorpayPaymentId && (
+          <div style={{ fontSize: 13.5, color: 'var(--warning-600)', fontWeight: 700 }}>
+            No captured payment is recorded for this order — it is not counted as revenue.
+          </div>
+        )}
+        <div style={{ fontSize: 13.5, color: 'var(--text-muted)', overflowWrap: 'anywhere', lineHeight: 1.5 }}>
+          Booking ID <span style={{ fontFamily: 'monospace' }}>{displayRef(o)}</span>
+          {' '}· Order ID <span style={{ fontFamily: 'monospace' }}>{o.id}</span>
+          {o.razorpayOrderId && <> · Gateway order <span style={{ fontFamily: 'monospace' }}>{o.razorpayOrderId}</span></>}
+          {o.razorpayPaymentId && <> · Payment <span style={{ fontFamily: 'monospace' }}>{o.razorpayPaymentId}</span></>}
+          {o.refundReason && <> · Refund reason: {o.refundReason}</>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: compact ? 'none' : 220 }}>
+        <DeleteAction row={o} compact={compact} onDelete={onDelete} />
+      </div>
+    </div>
+  )
+}
 
 const GRID = { display: 'grid', gridTemplateColumns: '120px 1.5fr 1.1fr 1.3fr 110px 95px 150px', minWidth: 1040, gap: 10 }
 
 export default function BookingsPage() {
-  const { bookings, updateBooking, openModal, logAudit, showToast, settings } = useAdmin()
+  const { bookings, updateBooking, eventOrders, deleteBooking, openModal, logAudit, showToast, settings } = useAdmin()
   // Per-row: the booking's own frozen fee (what was actually charged) wins;
   // the current platform fee is only the fallback for older records.
   const rowFee = (b) => '₹' + (b.fee != null && Number.isFinite(Number(b.fee)) ? Number(b.fee) : Number(settings?.fee) || 20)
   // Friendly payment-method label. "venue" = customer pays the FULL amount at
   // the venue (its platform fee is recovered from the vendor's weekly payout).
-  const METHOD_LABELS = { upi: 'UPI', card: 'Card', netbanking: 'Net banking', venue: 'Pay at venue', 'walk-in': 'Walk-in' }
+  const METHOD_LABELS = { upi: 'UPI', card: 'Card', netbanking: 'Net banking', venue: 'Pay at venue', 'walk-in': 'Walk-in', online: 'Online' }
   const methodLabel = (m) => METHOD_LABELS[String(m || '').toLowerCase()] || m || '—'
   const atVenue = (b) => String(b.method || '').toLowerCase() === 'venue'
   // Part payment: only `payNow` was captured online; the rest is due at the venue.
@@ -79,27 +127,34 @@ export default function BookingsPage() {
   const compact = width < 768
 
   const location = useLocation()
+  const [filterType, setFilterType] = useState('All')
   const [filterStatus, setFilterStatus] = useState('All')
   const [filterDate, setFilterDate] = useState('All')
+  // What the date filter reads (event/slot date or booked-on date) and the
+  // custom range's inclusive ends.
+  const [dateBasis, setDateBasis] = useState('scheduled')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [query, setQuery] = useState('')
-  const [expandedId, setExpandedId] = useState(location.state?.expandId || null)
+  const [exporting, setExporting] = useState(false)
+  // Rows are keyed "venue:<id>" / "event:<id>" — the two tables have separate
+  // id spaces. Deep links (activity feed / user drawer) carry a VENUE id.
+  const [expandedId, setExpandedId] = useState(location.state?.expandId ? `venue:${location.state.expandId}` : null)
 
   // Deep links from activity feed / user drawer expand the target booking
   useEffect(() => {
-    if (location.state?.expandId) setExpandedId(location.state.expandId)
+    if (location.state?.expandId) setExpandedId(`venue:${location.state.expandId}`)
   }, [location.state])
 
-  const q = query.trim().toLowerCase()
   const today = localTodayISO()
-  // Date-bucket match against the real current date (fixes the old hardcoded
-  // "day 15 = today" that broke once the mock data went away).
-  const matchesDate = (b) => {
-    if (filterDate === 'All') return true
-    const d = bookingISO(b)
-    if (!d) return false
-    if (filterDate === 'today') return d === today
-    if (filterDate === 'upcoming') return d > today
-    return d < today // past / "Earlier"
+  const rows = useMemo(() => unifyBookings(bookings, eventOrders), [bookings, eventOrders])
+  // Only offer statuses the selected booking type can actually have.
+  const statusOptions = STATUS_OPTIONS.filter((o) => filterType === 'All' || o.kinds.includes(filterType))
+  const changeType = (type) => {
+    setFilterType(type)
+    if (filterStatus !== 'All' && !STATUS_OPTIONS.some((o) => o.value === filterStatus && (type === 'All' || o.kinds.includes(type)))) {
+      setFilterStatus('All')
+    }
   }
   // Which screen/pitch was booked: unit bookings target the unit's own
   // listing ("RK PARTY HOUSE — Screen 2"), so the unit is recoverable from
@@ -112,10 +167,51 @@ export default function BookingsPage() {
       unit: b.unitLabel || (hasSep ? full.split(' — ').slice(1).join(' — ') : ''),
     }
   }
-  const filtered = bookings.filter((b) =>
-    (filterStatus === 'All' || b.status === filterStatus) &&
-    matchesDate(b) &&
-    (!q || (b.id + ' ' + bookingRef(b.id) + ' ' + b.venue + ' ' + b.customer + ' ' + (b.phone || '')).toLowerCase().includes(q)))
+  const filters = { type: filterType, status: filterStatus, date: filterDate, basis: dateBasis, from: dateFrom, to: dateTo, query }
+  const filtered = filterBookings(rows, filters, today)
+  const counts = countByKind(filtered)
+  const rangeInvalid = filterDate === 'range' && dateFrom && dateTo && dateFrom > dateTo
+
+  // Download the rows on screen as .xlsx. The SERVER applies the same
+  // filters (it never sends the whole table for the browser to sift), so
+  // the file holds exactly the matching bookings.
+  const exportExcel = () => {
+    if (exporting) return
+    setExporting(true)
+    adminApi.exportBookings(exportParams(filters, today))
+      .then((blob) => {
+        saveBlob(blob, exportFilename(today))
+        showToast(`Exported ${filtered.length} booking${filtered.length === 1 ? '' : 's'} to Excel`)
+      })
+      .catch((err) => showToast(
+        err.status === 401 || err.status === 403
+          ? 'Your admin session has expired. Sign in again to export bookings.'
+          : `Could not export bookings: ${err.message || 'request failed'}`,
+      ))
+      .finally(() => setExporting(false))
+  }
+
+  // Delete an UNPAID booking of either kind. The server re-checks everything
+  // (paid, active, refunded and mid-checkout rows are refused), so this
+  // confirmation is a guard against slips, not the rule. Cancelling the
+  // dialog does nothing; the row leaves the list only after the API agrees.
+  const confirmDelete = (row) => openModal({
+    ...deletePrompt(row),
+    confirmLabel: 'Delete booking', danger: true, needsReason: true,
+    onConfirm: (reason) => {
+      const ref = displayRef(row)
+      deleteBooking(row, reason)
+        .then(() => {
+          setExpandedId((k) => (k === row.key ? null : k))
+          showToast(`Booking ${ref} deleted`)
+        })
+        .catch((err) => showToast(
+          err.status === 401 || err.status === 403
+            ? 'Your admin session has expired. Sign in again to delete bookings.'
+            : `Could not delete ${ref}: ${err.message || 'request failed'}`,
+        ))
+    },
+  })
 
   const refund = (b) => {
     // Only the amount actually captured ONLINE can be refunded — part-payment
@@ -139,42 +235,107 @@ export default function BookingsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
-          <option value="All">Status: All</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="refund_pending">Refund pending</option>
-          <option value="refunded">Refunded</option>
+        <select value={filterType} onChange={(e) => changeType(e.target.value)} style={selectStyle} aria-label="Booking type">
+          <option value="All">Type: All</option>
+          <option value="venue">Venue bookings</option>
+          <option value="event">Event tickets</option>
         </select>
-        <select value={filterDate} onChange={(e) => setFilterDate(e.target.value)} style={selectStyle}>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle} aria-label="Status">
+          <option value="All">Status: All</option>
+          {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <select value={filterDate} onChange={(e) => setFilterDate(e.target.value)} style={selectStyle} aria-label="Dates">
           <option value="All">Dates: All</option>
           <option value="today">Today</option>
           <option value="upcoming">Upcoming</option>
           <option value="past">Earlier</option>
+          <option value="range">Custom range…</option>
         </select>
+        {filterDate !== 'All' && (
+          <select value={dateBasis} onChange={(e) => setDateBasis(e.target.value)} style={selectStyle} aria-label="Date to filter by">
+            {DATE_BASIS_OPTIONS.map((o) => <option key={o.value} value={o.value}>By: {o.label}</option>)}
+          </select>
+        )}
+        {filterDate === 'range' && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)}
+              style={dateInputStyle} aria-label="Start date" title="Start date"
+            />
+            <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>to</span>
+            <input
+              type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)}
+              style={dateInputStyle} aria-label="End date" title="End date"
+            />
+          </div>
+        )}
         <input
-          className="bmva" type="text" placeholder="Filter by venue, customer or ID…" value={query}
+          className="bmva" type="text" placeholder="Search ID, venue, event or customer…" value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{ fontFamily: 'var(--font-body)', fontSize: 15.5, color: 'var(--text-heading)', minHeight: 40, padding: '0 14px', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 10, width: compact ? '100%' : 280 }}
         />
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>
           {filtered.length} booking{filtered.length === 1 ? '' : 's'}
+          {filterType === 'All' && filtered.length > 0 && ` · ${counts.venue} venue · ${counts.event} event`}
         </div>
+        <Button
+          variant="secondary" size="sm" onClick={exportExcel}
+          disabled={exporting || rangeInvalid || filtered.length === 0}
+          style={{ minHeight: 40 }}
+        >
+          <Download size={17} strokeWidth={2.2} aria-hidden="true" />
+          {exporting ? 'Exporting…' : 'Export Excel'}
+        </Button>
       </div>
+      {filterDate !== 'All' && (
+        <div style={{ fontSize: 13.5, color: rangeInvalid ? 'var(--error-600)' : 'var(--text-muted)', marginTop: -4 }}>
+          {rangeInvalid
+            ? 'The start date is after the end date.'
+            : dateBasis === 'created'
+              ? 'Dates filter by the day the booking was made (IST).'
+              : 'Dates filter by the event date for event tickets and the booked slot date for venue bookings.'}
+        </div>
+      )}
 
       {compact ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtered.map((b) => {
-            const [badge, label] = statusMeta(BK_META, b.status)
-            const expanded = expandedId === b.id
+            if (b.kind === 'event') {
+              const [tone, text] = statusBadge(b)
+              const expanded = expandedId === b.key
+              return (
+                <div key={b.key} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div onClick={() => setExpandedId(expanded ? null : b.key)} style={{ display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 800, color: 'var(--text-heading)', fontSize: 15.5 }}>{displayRef(b)}</span>
+                      <KindChip kind="event" />
+                      <span style={{ flex: 1 }} />
+                      <Badge status={tone} size="sm">{text}</Badge>
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)' }}>{b.eventName || '—'}</div>
+                    <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{b.customer || '—'}{b.phone ? ` · ${b.phone}` : ''} · {eventWhen(b)}</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{ticketSummary(b) || `${b.tickets || 0} tickets`}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15 }}>
+                      <span style={{ fontWeight: 800, color: 'var(--text-heading)' }}>{fmt(b.amount)}</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{methodLabel(b.method)}</span>
+                      <span style={{ flex: 1 }} />
+                      <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-muted)' }}>{expanded ? 'Hide details ▲' : 'View details ▼'}</span>
+                    </div>
+                  </div>
+                  {expanded && <EventOrderDetails o={b} compact onDelete={confirmDelete} />}
+                </div>
+              )
+            }
+            const [badge, label] = statusBadge(b)
+            const expanded = expandedId === b.key
             const canRefund = b.status === 'confirmed' || b.status === 'refund_pending'
             return (
-              <div key={b.id} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div onClick={() => setExpandedId(expanded ? null : b.id)} style={{ display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div key={b.key} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div onClick={() => setExpandedId(expanded ? null : b.key)} style={{ display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <span style={{ fontWeight: 800, color: 'var(--text-heading)', fontSize: 15.5 }}>{bookingRef(b.id)}</span>
+                    <KindChip kind="venue" />
                     <span style={{ flex: 1 }} />
                     <Badge status={badge} size="sm">{label}</Badge>
                   </div>
@@ -216,6 +377,7 @@ export default function BookingsPage() {
                     {canRefund && (
                       <Button variant="secondary" size="sm" block onClick={() => refund(b)}>Issue refund</Button>
                     )}
+                    <DeleteAction row={b} compact onDelete={confirmDelete} />
                   </div>
                 )}
               </div>
@@ -228,21 +390,55 @@ export default function BookingsPage() {
       ) : (
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-          <div>Booking</div><div>Venue</div><div>Customer</div><div>Date &amp; slot</div><div>Amount</div><div>Method</div><div>Status</div>
+          <div>Booking</div><div>Venue / event</div><div>Customer</div><div>Date &amp; slot</div><div>Amount</div><div>Method</div><div>Status</div>
         </div>
 
         {filtered.map((b) => {
-          const [badge, label] = statusMeta(BK_META, b.status)
-          const expanded = expandedId === b.id
+          if (b.kind === 'event') {
+            const [tone, text] = statusBadge(b)
+            const expanded = expandedId === b.key
+            return (
+              <div key={b.key} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--neutral-100)', minWidth: 1040 }}>
+                <div
+                  onClick={() => setExpandedId(expanded ? null : b.key)}
+                  className="hover-row"
+                  style={{ ...GRID, padding: '16px 12px', fontSize: 16, alignItems: 'center', cursor: 'pointer' }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{displayRef(b)}</div>
+                    <KindChip kind="event" />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.eventName || '—'}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ticketSummary(b) || `${b.tickets || 0} tickets`}</div>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.customer || '—'}</div>
+                    {b.phone && <div style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>{b.phone}</div>}
+                  </div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{eventWhen(b)}</div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(b.amount)}</div>
+                  <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{methodLabel(b.method)}</div>
+                  <div><Badge status={tone} size="sm">{text}</Badge></div>
+                </div>
+                {expanded && <EventOrderDetails o={b} onDelete={confirmDelete} />}
+              </div>
+            )
+          }
+          const [badge, label] = statusBadge(b)
+          const expanded = expandedId === b.key
           const canRefund = b.status === 'confirmed' || b.status === 'refund_pending'
           return (
-            <div key={b.id} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--neutral-100)', minWidth: 1040 }}>
+            <div key={b.key} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--neutral-100)', minWidth: 1040 }}>
               <div
-                onClick={() => setExpandedId(expanded ? null : b.id)}
+                onClick={() => setExpandedId(expanded ? null : b.key)}
                 className="hover-row"
                 style={{ ...GRID, padding: '16px 12px', fontSize: 16, alignItems: 'center', cursor: 'pointer' }}
               >
-                <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{bookingRef(b.id)}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{bookingRef(b.id)}</div>
+                  <KindChip kind="venue" />
+                </div>
                 {(() => { const u = splitUnit(b); return (
                   <div style={{ minWidth: 0 }}>
                     <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.base}</div>
@@ -282,8 +478,13 @@ export default function BookingsPage() {
                       </div>
                     )}
                   </div>
-                  {canRefund && (
-                    <Button variant="secondary" size="sm" onClick={() => refund(b)}>Issue refund</Button>
+                  {(canRefund || b.removable || b.removeBlockedReason) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 220 }}>
+                      {canRefund && (
+                        <Button variant="secondary" size="sm" onClick={() => refund(b)}>Issue refund</Button>
+                      )}
+                      <DeleteAction row={b} onDelete={confirmDelete} />
+                    </div>
                   )}
                 </div>
               )}

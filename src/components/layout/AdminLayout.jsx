@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { key: 'vendors', path: '/vendors', label: 'Vendors', icon: 'briefcase' },
   { key: 'users', path: '/users', label: 'Users', icon: 'users' },
   { key: 'bookings', path: '/bookings', label: 'Bookings', icon: 'calendar-check' },
+  { key: 'events', path: '/events', label: 'Events', icon: 'ticket', badge: 'events' },
   { key: 'payouts', path: '/payouts', label: 'Payouts', icon: 'wallet' },
   { key: 'refunds', path: '/refunds', label: 'Refunds', icon: 'inbox' },
   { key: 'reviews', path: '/reviews', label: 'Reviews', icon: 'star' },
@@ -29,7 +30,7 @@ const NAV_ITEMS = [
 
 const TITLES = {
   '/': 'Dashboard', '/register-venue': 'Register a venue', '/approvals': 'Venue approvals', '/venues': 'Live venues', '/all-venues': 'All venues', '/vendors': 'Vendors',
-  '/users': 'Users', '/bookings': 'Bookings', '/payouts': 'Payouts', '/refunds': 'Refunds', '/reviews': 'Reviews moderation',
+  '/users': 'Users', '/bookings': 'Bookings', '/events': 'Events', '/payouts': 'Payouts', '/refunds': 'Refunds', '/reviews': 'Reviews moderation',
   '/deletion-requests': 'Deletion requests',
   '/settings': 'Platform settings', '/audit': 'Audit log',
 }
@@ -50,7 +51,7 @@ function LoadingSkeleton() {
 }
 
 export default function AdminLayout() {
-  const { authed, setAuthed, admin, pendingApprovals, approvals, venues, dataStatus, retryLoad } = useAdmin()
+  const { authed, setAuthed, admin, pendingApprovals, pendingEvents, approvals, venues, dataStatus, retryLoad } = useAdmin()
   const { isMobile, isNarrow: viewportNarrow } = useViewport()
   const location = useLocation()
   const navigate = useNavigate()
@@ -105,6 +106,7 @@ export default function AdminLayout() {
   const isNarrow = !isMobile && (collapsed || viewportNarrow)
   const pendingCount = pendingApprovals.length
   const deletionCount = (venues || []).filter((v) => v.status === 'deletion_requested').length
+  const eventCount = (pendingEvents || []).length
 
   // Approval detail gets a contextual title. Ids are UUID strings from the
   // real API — match any non-slash segment and compare as strings.
@@ -124,7 +126,10 @@ export default function AdminLayout() {
 
   const navList = (compact) => NAV_ITEMS.map((it) => {
     const isActive = it.path === '/' ? location.pathname === '/' : basePath === it.path
-    const badgeCount = it.badge === 'deletions' ? deletionCount : it.badge ? pendingCount : 0
+    const badgeCount =
+      it.badge === 'deletions' ? deletionCount
+        : it.badge === 'events' ? eventCount
+          : it.badge ? pendingCount : 0
     return (
       <button
         key={it.key}
