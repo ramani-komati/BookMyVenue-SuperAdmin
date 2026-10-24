@@ -1,0 +1,31 @@
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+.vercel/
+coverage/
+
+# Logs
+*.log
+dev.log
+
+# Environment files — never commit secrets
+.env
+.env.*
+!.env.example
+
+# Local tooling / caches
+.vite/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary local files
+*.local
