@@ -116,9 +116,10 @@
 }
 
 /* Photo upload tiles */
+/* Tiles are the customer card's 3:2 frame (ImageFrame). */
 .rv-uptile {
-  width: 190px;
-  height: 190px;
+  width: 210px;
+  height: 140px;
   border: 2px dashed var(--border-default);
   border-radius: var(--radius-lg);
   display: flex;
@@ -137,8 +138,8 @@
 }
 .rv-upthumb {
   position: relative;
-  width: 190px;
-  height: 190px;
+  width: 210px;
+  height: 140px;
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--border-subtle);

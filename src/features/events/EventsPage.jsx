@@ -1,8 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
+import ExportButton from '../../components/ui/ExportButton.jsx'
 import Icon from '../../components/ui/Icon.jsx'
+import { adminApi } from '../../services/adminApi.js'
+import { exportFileName } from '../../utils/exports.js'
+import { localTodayISO } from '../../utils/slots.js'
 import EventFormModal from './EventFormModal.jsx'
 import EventOrdersModal from './EventOrdersModal.jsx'
 import { MAX_PROMOTED } from './eventForm.js'
@@ -10,10 +14,11 @@ import { MAX_PROMOTED } from './eventForm.js'
 /**
  * EventsPage — the super admin's event management.
  *
- * Events are an ADMIN product: the admin creates them here, edits them,
- * publishes and unpublishes them, and retires them. There is no vendor
- * submission to approve and no vendor onboarding, bank account or payout in
- * the way — the organiser is recorded as plain text on the event itself.
+ * The admin creates events here, edits them, publishes and unpublishes them,
+ * and retires them. VENDORS also submit events from their portal: those
+ * arrive as "pending" in the Pending tab, marked "Vendor-submitted" with the
+ * vendor's name and phone, and go live only when an admin approves them
+ * (Approve) — or are rejected with a reason the vendor sees.
  *
  * The one thing that is NOT an admin decision is whether an event is
  * complete enough to sell: the backend refuses to publish an event with no
@@ -21,8 +26,6 @@ import { MAX_PROMOTED } from './eventForm.js'
  * verbatim rather than being pre-empted by a disabled button whose reason
  * the admin would have to guess.
  *
- * The legacy `pending` / `rejected` statuses are still rendered so events
- * vendors submitted before the change can be cleared out of the queue.
  *
  * PROMOTION is a separate switch from publishing: "Promote on homepage" puts
  * a PUBLISHED event in the customer site's Featured events row; "Remove
@@ -56,6 +59,7 @@ const TABS = [
   { key: 'draft', label: 'Drafts' },
   { key: 'paused', label: 'Unpublished' },
   { key: 'pending', label: 'Pending' },
+  { key: 'rejected', label: 'Rejected' },
   { key: 'all', label: 'All' },
 ]
 
@@ -64,14 +68,21 @@ const EMPTY_COPY = {
   live: ['Nothing published yet', 'Create an event and publish it — it appears on the customer Events page straight away.'],
   draft: ['No drafts', 'Events you save without publishing wait here.'],
   paused: ['Nothing unpublished', 'Unpublishing hides an event from customers while keeping sold tickets valid.'],
-  pending: ['Nothing waiting for review', 'Events vendors submitted before the team took over event listing would appear here.'],
+  pending: ['Nothing waiting for review', 'Events vendors submit from their portal appear here for approval.'],
+  rejected: ['Nothing rejected', 'Rejected vendor submissions appear here with the reason you gave.'],
   all: ['No events yet', 'Create your first event to start selling tickets.'],
 }
 
 export default function EventsPage() {
   const {
-    events, createEvent, updateEvent, deleteEvent, openModal, showToast,
+    events, createEvent, updateEvent, deleteEvent, refreshEvents, openModal, showToast,
   } = useAdmin()
+  // Vendors submit events from their portal at any time — fetch the current
+  // list on open so new submissions are in the Pending queue without a full
+  // reload. Best effort: the bootstrap list stays if this fails.
+  useEffect(() => {
+    refreshEvents().catch(() => {})
+  }, [refreshEvents])
   const [tab, setTab] = useState('live')
   const [form, setForm] = useState(null)       // null | {} (new) | event row
   const [orders, setOrders] = useState(null)   // the event whose bookings are open
@@ -112,7 +123,9 @@ export default function EventsPage() {
   }
 
   const publish = (e) => run(
-    e, () => updateEvent(e.id, { status: 'publish' }), `${e.name} is now live`,
+    e,
+    () => updateEvent(e.id, { status: 'publish' }),
+    e.status === 'pending' ? `${e.name} approved — it is now live` : `${e.name} is now live`,
   )
 
   const promote = (e) => run(
@@ -184,6 +197,13 @@ export default function EventsPage() {
             )
           })}
         </div>
+        {/* The tab's events with ticket types, per-date seats and sales. */}
+        <ExportButton
+          fetchFile={() => adminApi.exportReport('events', { tab })}
+          filename={exportFileName('admin_events', localTodayISO())}
+          count={rows.length} noun={rows.length === 1 ? 'event' : 'events'} what="events"
+          title="Events in this tab, with ticket types, seats per date, sales, refunds and revenue"
+        />
         <Button variant="navy" size="sm" onClick={() => setForm({})} style={{ flex: '0 0 auto' }}>
           <Icon name="plus" size={16} /> Create event
         </Button>
@@ -269,7 +289,8 @@ export default function EventsPage() {
                   </div>
                 )}
                 <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2, overflowWrap: 'anywhere' }}>
-                  {e.vendor || 'Organiser not recorded'} · {e.location || '—'}
+                  {e.vendor || 'Organiser not recorded'}
+                  {e.managedBy === 'vendor' && e.vendorPhone ? ` (${e.vendorPhone})` : ''} · {e.location || '—'}
                 </div>
                 <div style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 2 }}>
                   {e.startTime}–{e.endTime} · {e.datesCount} date{e.datesCount === 1 ? '' : 's'}
@@ -328,7 +349,7 @@ export default function EventsPage() {
                   </Button>
                 ) : (
                   <Button variant="primary" size="sm" disabled={busy} onClick={() => publish(e)}>
-                    {busy ? '…' : 'Publish'}
+                    {busy ? '…' : e.status === 'pending' ? 'Approve' : 'Publish'}
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" disabled={busy} onClick={() => remove(e)}>

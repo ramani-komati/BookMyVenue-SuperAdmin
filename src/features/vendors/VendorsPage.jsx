@@ -1,8 +1,15 @@
+import { useState } from 'react'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
+import { adminApi } from '../../services/adminApi.js'
 import { fmt, initials, statusMeta } from '../../utils/format.js'
+import { exportFileName } from '../../utils/exports.js'
 import { vendorEarnings } from '../../utils/revenue.js'
+import { localTodayISO } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
+import ExportButton from '../../components/ui/ExportButton.jsx'
+import { countStyle, searchStyle, selectStyle } from '../../components/ui/filterStyles.js'
+import { ACCOUNT_OPTIONS, KYC_OPTIONS, filterVendors, vendorExportParams } from './vendorFilters.js'
 
 const ACC_META = { active: ['success', 'Active'], suspended: ['error', 'Suspended'] }
 
@@ -12,6 +19,12 @@ export default function VendorsPage() {
   const { vendors, venues, bookings, settings, openDrawer } = useAdmin()
   const { width } = useViewport()
   const compact = width < 768
+  const [query, setQuery] = useState('')
+  const [acc, setAcc] = useState('All')
+  const [kyc, setKyc] = useState('All')
+  const filters = { query, acc, kyc }
+  const shown = filterVendors(vendors, filters)
+  const filtering = shown.length !== vendors.length
   // The vendor's actual money: Σ (amount − booking-time frozen platform fee)
   // across their venues' kept bookings — not gross turnover.
   const earningsOf = (p) => fmt(vendorEarnings(p.name, venues, bookings, Number(settings?.fee) || 20))
@@ -26,10 +39,47 @@ export default function VendorsPage() {
     ),
   ]
 
+  // Search + account/KYC filters, and the export of exactly these vendors
+  // (the server applies the same filters — see vendorFilters.js).
+  const toolbar = (
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      <input
+        className="bmva" type="search" placeholder="Search name, phone, email or ID…" value={query}
+        onChange={(e) => setQuery(e.target.value)} style={searchStyle(compact)} aria-label="Search vendors"
+      />
+      <select value={acc} onChange={(e) => setAcc(e.target.value)} style={selectStyle} aria-label="Account status">
+        {ACCOUNT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <select value={kyc} onChange={(e) => setKyc(e.target.value)} style={selectStyle} aria-label="KYC status">
+        {KYC_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <div style={{ flex: 1 }} />
+      <div style={countStyle}>
+        {vendors.length === 0
+          ? 'No vendors yet.'
+          : `${filtering ? `${shown.length} of ` : ''}${vendors.length} vendor${vendors.length === 1 ? '' : 's'}`}
+      </div>
+      <ExportButton
+        fetchFile={() => adminApi.exportReport('vendors', vendorExportParams(filters))}
+        filename={exportFileName('admin_vendors', localTodayISO())}
+        count={shown.length} noun={shown.length === 1 ? 'vendor' : 'vendors'} what="vendors"
+        label={filtering ? 'Export matching vendors' : 'Export Excel'}
+        title="Vendor details, venues, KYC and booking totals — never bank details or passwords"
+      />
+    </div>
+  )
+  const noMatch = vendors.length > 0 && shown.length === 0 && (
+    <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 15 }}>
+      No vendors match these filters.
+    </div>
+  )
+
   if (compact) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {vendors.map((p) => (
+        {toolbar}
+        {noMatch}
+        {shown.map((p) => (
           <div key={p.id} onClick={() => openDrawer('vendor', p.id)} className="card hover-wash" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--navy-50)', color: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, flex: '0 0 auto' }}>{initials(p.name)}</div>
@@ -56,11 +106,13 @@ export default function VendorsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {toolbar}
+      {noMatch || (
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
           <div>Vendor</div><div>Phone</div><div>Email</div><div>Venues</div><div>Venue names</div><div>Earnings</div><div>Joined</div><div>Account</div>
         </div>
-        {vendors.map((p) => (
+        {shown.map((p) => (
           <div
             key={p.id}
             onClick={() => openDrawer('vendor', p.id)}
@@ -83,6 +135,7 @@ export default function VendorsPage() {
           </div>
         ))}
       </div>
+      )}
     </div>
   )
 }

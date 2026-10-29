@@ -145,6 +145,8 @@ export function matchesQuery(row, query) {
   const haystack = [
     row.id, bookingRef(row.id), displayRef(row), row.title, row.venue, row.eventName, row.location,
     row.customer, row.phone, row.razorpayOrderId, row.razorpayPaymentId,
+    // Searchable, though only displayed inside the expanded row.
+    row.invoiceNumber,
   ].filter(Boolean).join(' ').toLowerCase()
   return haystack.includes(q)
 }

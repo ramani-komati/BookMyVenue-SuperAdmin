@@ -2,11 +2,16 @@ import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
+import { adminApi } from '../../services/adminApi.js'
 import { fmt, statusMeta } from '../../utils/format.js'
+import { cleanParams, exportFileName } from '../../utils/exports.js'
 import { keepsMoney, platformFeeOf } from '../../utils/revenue.js'
+import { localTodayISO } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
+import ExportButton from '../../components/ui/ExportButton.jsx'
 import StatCard from '../../components/ui/StatCard.jsx'
+import { dateInputStyle } from '../../components/ui/filterStyles.js'
 
 const PO_META = { pending: ['warning', 'Pending'], completed: ['success', 'Completed'], failed: ['error', 'Failed'] }
 
@@ -20,6 +25,11 @@ export default function PayoutsPage() {
   const location = useLocation()
   const [tab, setTab] = useState(location.state?.tab || 'Pending')
   const [showFees, setShowFees] = useState(false)
+  // Payments & refunds report range — the day each booking was made (IST).
+  // Both ends optional; empty means all time.
+  const [reportFrom, setReportFrom] = useState('')
+  const [reportTo, setReportTo] = useState('')
+  const reportRangeInvalid = Boolean(reportFrom && reportTo && reportFrom > reportTo)
 
   // The platform's ONLY charge is the flat booking fee added to each online
   // booking. The fee is FROZEN per booking at booking time — the current
@@ -147,7 +157,31 @@ export default function PayoutsPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {/* Reconciliation download: every venue booking and ticket order with
+          its gateway payment, refund and fee, plus a Summary sheet that keeps
+          gross value, captured payments, refunds and net apart. */}
+      <div className="card" style={{ padding: compact ? 14 : '14px 20px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 16.5, fontWeight: 800, color: 'var(--text-heading)' }}>Payments &amp; refunds report</div>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+            {reportRangeInvalid
+              ? <span style={{ color: 'var(--error-600)', fontWeight: 700 }}>The start date is after the end date.</span>
+              : 'Excel workbook: summary, venue payments, event payments and refunds. Dates are the day the booking was made; leave both empty for all time.'}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input type="date" value={reportFrom} max={reportTo || undefined} onChange={(e) => setReportFrom(e.target.value)} style={dateInputStyle} aria-label="Report start date" title="Start date" />
+          <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>to</span>
+          <input type="date" value={reportTo} min={reportFrom || undefined} onChange={(e) => setReportTo(e.target.value)} style={dateInputStyle} aria-label="Report end date" title="End date" />
+          <ExportButton
+            fetchFile={() => adminApi.exportReport('payments', cleanParams({ from: reportFrom, to: reportTo }))}
+            filename={exportFileName('admin_payments', localTodayISO())}
+            what="the payments report" label="Export report" disabled={reportRangeInvalid}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {['Pending', 'Completed', 'Failed'].map((label) => {
           const on = label === tab
           return (
@@ -166,6 +200,13 @@ export default function PayoutsPage() {
             </button>
           )
         })}
+        <div style={{ flex: 1 }} />
+        <ExportButton
+          fetchFile={() => adminApi.exportReport('payouts', { status: tab.toLowerCase() })}
+          filename={exportFileName('admin_payouts', localTodayISO())}
+          count={filtered.length} noun={`${tab.toLowerCase()} payout${filtered.length === 1 ? '' : 's'}`} what="payouts"
+          title={`Exports the ${tab.toLowerCase()} payouts listed below`}
+        />
       </div>
 
       {compact ? (

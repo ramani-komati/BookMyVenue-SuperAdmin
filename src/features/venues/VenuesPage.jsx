@@ -2,9 +2,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
+import { adminApi } from '../../services/adminApi.js'
 import { placeOf } from '../../utils/format.js'
+import { exportFileName } from '../../utils/exports.js'
+import { localTodayISO } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
+import ExportButton from '../../components/ui/ExportButton.jsx'
 
 const VENUE_META = { live: ['live', 'Live'], paused: ['warning', 'Paused'], pending: ['warning', 'Pending'], rejected: ['rejected', 'Rejected'], draft: ['draft', 'Draft'], deletion_requested: ['warning', 'Deletion requested'] }
 // Unknown statuses from the API must never crash the page — show them as-is.
@@ -75,12 +79,20 @@ export default function VenuesPage() {
         <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-muted)' }}>
           {live.length === 0 ? 'No live venues yet.' : `${live.length} live venue${live.length === 1 ? '' : 's'}`}
         </div>
-        <button
-          onClick={() => navigate('/all-venues')}
-          style={{ fontFamily: 'var(--font-body)', fontSize: 14.5, fontWeight: 700, color: 'var(--navy-600)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-        >
-          All venues incl. deleted →
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => navigate('/all-venues')}
+            style={{ fontFamily: 'var(--font-body)', fontSize: 14.5, fontWeight: 700, color: 'var(--navy-600)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            All venues incl. deleted →
+          </button>
+          <ExportButton
+            fetchFile={() => adminApi.exportReport('venues', { scope: 'live' })}
+            filename={exportFileName('admin_venues', localTodayISO())}
+            count={live.length} noun={live.length === 1 ? 'live venue' : 'live venues'} what="venues"
+            title="Exports every live venue with its vendor, location, price, status and booking totals"
+          />
+        </div>
       </div>
       {selectedIds.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'var(--navy-800)', color: '#fff', borderRadius: 12, padding: '10px 16px' }}>

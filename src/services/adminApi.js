@@ -79,6 +79,16 @@ export const adminApi = {
     ).toString()
     return request(`/bookings/export${query ? `?${query}` : ''}`, { blob: true })
   },
+  // Every other page's Excel export: kind = users | vendors | venues |
+  // approvals | events | payouts | refunds | payments | audit, with that
+  // page's own filters (the server applies them — reports/admin_reports.py).
+  // Resolves to a Blob. Super admin only; each export is audited server-side.
+  exportReport: (kind, params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ''),
+    ).toString()
+    return request(`/exports/${encodeURIComponent(kind)}${query ? `?${query}` : ''}`, { blob: true })
+  },
 
   // Register-venue: mint a vendor JWT for an owner (create the vendor if the
   // phone is new) so the admin can drive the existing vendor registration
@@ -136,6 +146,58 @@ export const adminApi = {
     form.append('image', file)
     return request('/uploads', { method: 'POST', form })
   },
+  // Booking verification across ALL venues and events — READ-ONLY (never
+  // checks anyone in; entry is recorded only by the venue's vendor). POST so
+  // the ID stays out of URLs/access logs. -> { found, code, title, message,
+  // eligibleToday, booking }
+  verifyBooking: (bookingId) => request('/check-ins/verify', { method: 'POST', body: { bookingId } }),
+  // ---------- Explore homepage (Homepage page) ----------
+  // Every write answers with the WHOLE page payload (incl. the new
+  // `revision`), so the page always shows what the server now holds. Writes
+  // that replace a list (sections, reorders) send the revision they loaded:
+  // a 409 STALE_HOMEPAGE means another admin saved first — err.detail.homepage
+  // carries the latest payload.
+  getHomepage: () => request('/homepage'),
+  saveHomepageSections: (revision, sections) =>
+    request('/homepage/sections', { method: 'PUT', body: { revision, sections } }),
+  createBanner: (fields) => request('/homepage/banners', { method: 'POST', body: fields }),
+  // `expectedUpdatedAt` = the banner's updatedAt when the editor opened; the
+  // server refuses (409 BANNER_CHANGED) if someone edited it since.
+  updateBanner: (id, fields) =>
+    request(`/homepage/banners/${encodeURIComponent(id)}`, { method: 'PATCH', body: fields }),
+  // Refused (409 PROMOTION_REDEEMED) once a paid booking has used its code.
+  deleteBanner: (id) => request(`/homepage/banners/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  reorderBanners: (revision, placement, ids) =>
+    request('/homepage/banners/reorder', { method: 'POST', body: { revision, placement, ids } }),
+  // Banner artwork -> { url, width, height, warnings }. The server checks the
+  // format, size and pixel dimensions before storing (slot: desktop | mobile).
+  uploadBannerImage: (file, slot) => {
+    const form = new FormData()
+    form.append('image', file)
+    form.append('slot', slot)
+    return request('/homepage/banner-image', { method: 'POST', form })
+  },
+  featureEvent: (eventId, schedule = {}) =>
+    request('/homepage/featured-events', { method: 'POST', body: { eventId, ...schedule } }),
+  scheduleFeaturedEvent: (eventId, schedule) =>
+    request(`/homepage/featured-events/${eventId}`, { method: 'PATCH', body: schedule }),
+  unfeatureEvent: (eventId) => request(`/homepage/featured-events/${eventId}`, { method: 'DELETE' }),
+  reorderFeaturedEvents: (revision, ids) =>
+    request('/homepage/featured-events/reorder', { method: 'POST', body: { revision, ids } }),
+  reorderFeaturedVenues: (revision, ids) =>
+    request('/homepage/featured-venues/reorder', { method: 'POST', body: { revision, ids } }),
+
+  // ---------- customer ratings & reviews (moderation only) ----------
+  listRatings: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ''),
+    ).toString()
+    return request(`/ratings${query ? `?${query}` : ''}`)
+  },
+  // { hidden: true, reason } hides a review from every average and list;
+  // { hidden: false } restores it. Nothing is ever deleted or rewritten.
+  updateRating: (id, patch) => request(`/ratings/${id}`, { method: 'PATCH', body: patch }),
+
   updatePayout: (id, patch) => request(`/payouts/${id}`, { method: 'PATCH', body: patch }),
   resolveReview: (id, resolution) => request(`/reviews/${id}/resolve`, { method: 'POST', body: resolution }),
   saveSettings: (settings) => request('/settings', { method: 'PUT', body: settings }),

@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
+import { adminApi } from '../../services/adminApi.js'
 import { placeOf } from '../../utils/format.js'
+import { exportFileName } from '../../utils/exports.js'
+import { localTodayISO } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
+import ExportButton from '../../components/ui/ExportButton.jsx'
 
 // Every status a venue can be in across its whole life on the platform —
 // including `deleted` rows, which the backend keeps (soft-delete) so the
@@ -105,6 +109,14 @@ export default function AllVenuesPage() {
         </div>
         {venues.length > 0 && chip('all', 'All', venues.length)}
         {STATUS_ORDER.map((s) => (counts[s] ? chip(s, VENUE_META[s][1], counts[s]) : null))}
+        <div style={{ flex: 1 }} />
+        {/* Exports the chip's venues (or every venue under "All"). */}
+        <ExportButton
+          fetchFile={() => adminApi.exportReport('venues', { scope: 'all', status: statusFilter === 'all' ? 'All' : statusFilter })}
+          filename={exportFileName('admin_venues', localTodayISO())}
+          count={shown.length} noun={shown.length === 1 ? 'venue' : 'venues'} what="venues"
+          title={statusFilter === 'all' ? 'Exports every venue ever listed' : `Exports the ${VENUE_META[statusFilter]?.[1] || ''} venues shown`}
+        />
       </div>
 
       {shown.length === 0 && venues.length > 0 && (

@@ -1,6 +1,10 @@
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
+import { adminApi } from '../../services/adminApi.js'
 import { adminLabel, resolveTarget } from '../../utils/format.js'
+import { exportFileName } from '../../utils/exports.js'
+import { localTodayISO } from '../../utils/slots.js'
+import ExportButton from '../../components/ui/ExportButton.jsx'
 
 // Admin widened (135→200px) so email-derived names like "durgaprasadbhuvani003"
 // fit on one line; the width comes off the over-wide Change column (1.6→1.2fr),
@@ -13,9 +17,25 @@ export default function AuditPage() {
   const compact = width < 768
   const collections = { approvals, venues, vendors, users, bookings }
 
+  // The panel shows the latest 100 entries; the export is the WHOLE log.
+  const toolbar = (
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-muted)' }}>
+        {audit.length === 0 ? 'No audit entries yet.' : `Latest ${audit.length} entr${audit.length === 1 ? 'y' : 'ies'}`}
+      </div>
+      <ExportButton
+        fetchFile={() => adminApi.exportReport('audit')}
+        filename={exportFileName('admin_audit_log', localTodayISO())}
+        what="the audit log" label="Export full log"
+        title="Downloads every audit entry, not only the latest 100 shown here"
+      />
+    </div>
+  )
+
   if (compact) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {toolbar}
         {audit.map((a, i) => (
           <div key={i} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, overflowWrap: 'anywhere' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -32,6 +52,7 @@ export default function AuditPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {toolbar}
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
           <div>When</div><div>Admin</div><div>Action</div><div>Target</div><div>Change</div>

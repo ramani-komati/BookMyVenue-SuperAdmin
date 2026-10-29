@@ -5,7 +5,11 @@ import { bookingRef, fmt, statusMeta } from '../../utils/format.js'
 import { displayInclusiveEnd } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
+import ExportButton from '../../components/ui/ExportButton.jsx'
 import Icon from '../../components/ui/Icon.jsx'
+import { adminApi } from '../../services/adminApi.js'
+import { exportFileName } from '../../utils/exports.js'
+import { localTodayISO } from '../../utils/slots.js'
 
 /**
  * RefundsPage — one place for every refund decision:
@@ -16,6 +20,8 @@ import Icon from '../../components/ui/Icon.jsx'
  *   • History    — everything already refunded
  */
 const RF_META = { confirmed: ['warning', 'Awaiting refund'], refund_pending: ['warning', 'Refund pending'], refunded: ['success', 'Refunded'] }
+// Each tab's export filter (reports/admin_reports.py refunds_report).
+const TAB_PARAM = { Requests: 'requests', 'Paused venues': 'paused', History: 'history' }
 
 export default function RefundsPage() {
   const { bookings, venues, updateBooking, openModal, logAudit, showToast } = useAdmin()
@@ -99,7 +105,7 @@ export default function RefundsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {['Requests', 'Paused venues', 'History'].map((label) => {
           const on = label === tab
           return (
@@ -118,6 +124,13 @@ export default function RefundsPage() {
             </button>
           )
         })}
+        <div style={{ flex: 1 }} />
+        <ExportButton
+          fetchFile={() => adminApi.exportReport('refunds', { tab: TAB_PARAM[tab] })}
+          filename={exportFileName('admin_refunds', localTodayISO())}
+          count={list.length} noun={list.length === 1 ? 'booking' : 'bookings'} what="refunds"
+          title={`Exports the bookings in "${tab}" with captured and refunded amounts`}
+        />
       </div>
 
       {tab === 'Paused venues' && (

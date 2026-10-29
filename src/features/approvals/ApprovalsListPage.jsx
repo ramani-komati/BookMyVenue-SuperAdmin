@@ -3,9 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
 import Badge from '../../components/ui/Badge.jsx'
+import ExportButton from '../../components/ui/ExportButton.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 import { APPROVAL_STATUS_META } from './approvalMeta.js'
+import { adminApi } from '../../services/adminApi.js'
 import { placeOf, statusMeta } from '../../utils/format.js'
+import { exportFileName } from '../../utils/exports.js'
+import { localTodayISO } from '../../utils/slots.js'
 import { TELANGANA_DISTRICTS } from '../../constants/districts.js'
 
 const PAGE_SIZE = 10
@@ -79,6 +83,13 @@ export default function ApprovalsListPage() {
         <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>
           {filtered.length} submission{filtered.length === 1 ? '' : 's'}
         </div>
+        {/* Every matching submission — all pages, not just this one. */}
+        <ExportButton
+          fetchFile={() => adminApi.exportReport('approvals', { status: filterStatus, category: filterCat, city: filterCity })}
+          filename={exportFileName('admin_approvals', localTodayISO())}
+          count={filtered.length} noun={filtered.length === 1 ? 'submission' : 'submissions'} what="approvals"
+          title={pages > 1 ? `Exports all ${filtered.length} matching submissions across ${pages} pages` : 'Exports the matching submissions'}
+        />
       </div>
 
       {compact ? (

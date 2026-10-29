@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Download } from 'lucide-react'
 import { useAdmin } from '../../context/AdminContext.jsx'
 import { adminApi } from '../../services/adminApi.js'
 import useViewport from '../../hooks/useViewport.js'
@@ -8,6 +7,8 @@ import { bookingRef, displayRef, fmt } from '../../utils/format.js'
 import { displayInclusiveEnd, localTodayISO } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
+import ExportButton from '../../components/ui/ExportButton.jsx'
+import { NOT_AVAILABLE, adminBookingInfo } from './bookingInfo.js'
 import { DATE_BASIS_OPTIONS, KIND_LABEL, STATUS_OPTIONS, countByKind, deletePrompt, exportFilename, exportParams, filterBookings, statusBadge, unifyBookings } from './unifiedBookings.js'
 
 const selectStyle = {
@@ -16,18 +17,6 @@ const selectStyle = {
   border: '1px solid var(--border-default)', borderRadius: 10, cursor: 'pointer',
 }
 const dateInputStyle = { ...selectStyle, fontWeight: 500, cursor: 'text' }
-
-// Save a Blob as a file via a temporary object URL.
-function saveBlob(blob, filename) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
 
 // "12 Oct 2026" for an event order's ISO date.
 const dateLabel = (iso) => {
@@ -67,6 +56,30 @@ function DeleteAction({ row, compact, onDelete }) {
   )
 }
 
+// Booking Info inside an expanded row: invoice number, created time, the
+// time the payment actually succeeded (and its source) and, for venue
+// bookings, the gateway references. Never shown as table columns.
+function BookingRecord({ row, compact, references = true }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px solid var(--border-subtle)', paddingTop: 10, marginTop: 2 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>Booking &amp; payment record</div>
+      {adminBookingInfo(row, { references }).map((r) => (
+        <div key={r.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, fontSize: compact ? 15 : 16 }}>
+          <span>{r.label}</span>
+          <span style={{ textAlign: 'right', minWidth: 0 }}>
+            <span style={{
+              display: 'block', fontWeight: 700, overflowWrap: 'anywhere',
+              color: r.value === NOT_AVAILABLE ? 'var(--text-muted)' : 'var(--text-heading)',
+              fontFamily: r.mono ? 'monospace' : undefined,
+            }}>{r.value}</span>
+            {r.note && <span style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)' }}>{r.note}</span>}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Expanded panel for an event ticket order: tickets, fee, payment record and
 // the (server-guarded) delete action.
 function EventOrderDetails({ o, compact, onDelete }) {
@@ -99,6 +112,7 @@ function EventOrderDetails({ o, compact, onDelete }) {
           {o.razorpayPaymentId && <> · Payment <span style={{ fontFamily: 'monospace' }}>{o.razorpayPaymentId}</span></>}
           {o.refundReason && <> · Refund reason: {o.refundReason}</>}
         </div>
+        <BookingRecord row={o} compact={compact} references={false} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: compact ? 'none' : 220 }}>
         <DeleteAction row={o} compact={compact} onDelete={onDelete} />
@@ -136,7 +150,6 @@ export default function BookingsPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [query, setQuery] = useState('')
-  const [exporting, setExporting] = useState(false)
   // Rows are keyed "venue:<id>" / "event:<id>" — the two tables have separate
   // id spaces. Deep links (activity feed / user drawer) carry a VENUE id.
   const [expandedId, setExpandedId] = useState(location.state?.expandId ? `venue:${location.state.expandId}` : null)
@@ -175,21 +188,7 @@ export default function BookingsPage() {
   // Download the rows on screen as .xlsx. The SERVER applies the same
   // filters (it never sends the whole table for the browser to sift), so
   // the file holds exactly the matching bookings.
-  const exportExcel = () => {
-    if (exporting) return
-    setExporting(true)
-    adminApi.exportBookings(exportParams(filters, today))
-      .then((blob) => {
-        saveBlob(blob, exportFilename(today))
-        showToast(`Exported ${filtered.length} booking${filtered.length === 1 ? '' : 's'} to Excel`)
-      })
-      .catch((err) => showToast(
-        err.status === 401 || err.status === 403
-          ? 'Your admin session has expired. Sign in again to export bookings.'
-          : `Could not export bookings: ${err.message || 'request failed'}`,
-      ))
-      .finally(() => setExporting(false))
-  }
+  const exportExcel = () => adminApi.exportBookings(exportParams(filters, today))
 
   // Delete an UNPAID booking of either kind. The server re-checks everything
   // (paid, active, refunded and mid-checkout rows are refused), so this
@@ -279,14 +278,12 @@ export default function BookingsPage() {
           {filtered.length} booking{filtered.length === 1 ? '' : 's'}
           {filterType === 'All' && filtered.length > 0 && ` · ${counts.venue} venue · ${counts.event} event`}
         </div>
-        <Button
-          variant="secondary" size="sm" onClick={exportExcel}
-          disabled={exporting || rangeInvalid || filtered.length === 0}
-          style={{ minHeight: 40 }}
-        >
-          <Download size={17} strokeWidth={2.2} aria-hidden="true" />
-          {exporting ? 'Exporting…' : 'Export Excel'}
-        </Button>
+        <ExportButton
+          fetchFile={exportExcel} filename={exportFilename(today)}
+          count={filtered.length} noun={filtered.length === 1 ? 'booking' : 'bookings'}
+          what="bookings" disabled={rangeInvalid}
+          title="Exports every booking matching these filters — all of them, not just the ones on screen"
+        />
       </div>
       {filterDate !== 'All' && (
         <div style={{ fontSize: 13.5, color: rangeInvalid ? 'var(--error-600)' : 'var(--text-muted)', marginTop: -4 }}>
@@ -374,6 +371,7 @@ export default function BookingsPage() {
                         Paid at the venue — the {rowFee(b)} platform fee is deducted from the vendor&apos;s weekly payout.
                       </div>
                     )}
+                    <BookingRecord row={b} compact />
                     {canRefund && (
                       <Button variant="secondary" size="sm" block onClick={() => refund(b)}>Issue refund</Button>
                     )}
@@ -477,6 +475,7 @@ export default function BookingsPage() {
                         Paid at the venue — the {rowFee(b)} platform fee is deducted from the vendor&apos;s weekly payout.
                       </div>
                     )}
+                    <BookingRecord row={b} />
                   </div>
                   {(canRefund || b.removable || b.removeBlockedReason) && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 220 }}>

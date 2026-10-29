@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Route, Routes, Navigate } from 'react-router-dom'
 import { AdminProvider } from './context/AdminContext.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
@@ -13,11 +14,14 @@ import DeletionRequestsPage from './features/deletions/DeletionRequestsPage.jsx'
 import VendorsPage from './features/vendors/VendorsPage.jsx'
 import UsersPage from './features/users/UsersPage.jsx'
 import BookingsPage from './features/bookings/BookingsPage.jsx'
+import VerifyBookingPage from './features/checkin/VerifyBookingPage.jsx'
 import EventsPage from './features/events/EventsPage.jsx'
 import PayoutsPage from './features/payouts/PayoutsPage.jsx'
 import RefundsPage from './features/refunds/RefundsPage.jsx'
 import ReviewsPage from './features/reviews/ReviewsPage.jsx'
 import SettingsPage from './features/settings/SettingsPage.jsx'
+// Loaded on first visit: the editor (uploads, previews) is only for this page.
+const HomepagePage = lazy(() => import('./features/homepage/HomepagePage.jsx'))
 import AuditPage from './features/audit/AuditPage.jsx'
 
 export default function App() {
@@ -37,11 +41,20 @@ export default function App() {
           <Route path="/vendors" element={<VendorsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
+          <Route path="/verify-booking" element={<VerifyBookingPage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/payouts" element={<PayoutsPage />} />
           <Route path="/refunds" element={<RefundsPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route
+            path="/homepage"
+            element={(
+              <Suspense fallback={<div className="card" style={{ padding: 28, color: 'var(--text-muted)' }}>Loading homepage content…</div>}>
+                <HomepagePage />
+              </Suspense>
+            )}
+          />
           <Route path="/audit" element={<AuditPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

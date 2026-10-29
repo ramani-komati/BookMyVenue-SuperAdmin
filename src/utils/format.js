@@ -16,6 +16,9 @@ export const statusMeta = (map, key) => map[key] || ['draft', key ? String(key) 
 // part). Already-short ids (e.g. "BMV-8841") pass through untouched.
 export const bookingRef = (id) => {
   const s = String(id || '')
+  // A 6-character booking ID (venue bookings and event orders share the
+  // format) IS the reference — shown in full.
+  if (/^[A-Z0-9]{6}$/.test(s)) return '#' + s
   if (s.length <= 10) return s
   return '#' + s.replace(/^(bk|wk)_/i, '').slice(-6).toUpperCase()
 }

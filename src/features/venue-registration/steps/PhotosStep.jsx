@@ -25,6 +25,7 @@ export default function PhotosStep() {
         max={MAX_VENUE_PHOTOS}
         onAdd={(files) => addPhotos('venuePhotos', files)}
         onRemove={(id) => removePhoto('venuePhotos', id)}
+        spec="venuePhoto"
         countLabel={`${venuePhotos.length} / ${MAX_VENUE_PHOTOS} uploaded`}
       />
 
@@ -36,6 +37,7 @@ export default function PhotosStep() {
           max={MAX_SERVICE_IMAGES}
           onAdd={(files) => addPhotos('serviceImages', files)}
           onRemove={(id) => removePhoto('serviceImages', id)}
+          spec="serviceImage"
           countLabel={`${serviceImages.length} / ${MAX_SERVICE_IMAGES} uploaded`}
         />
       </div>

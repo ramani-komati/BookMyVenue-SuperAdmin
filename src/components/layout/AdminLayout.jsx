@@ -20,19 +20,21 @@ const NAV_ITEMS = [
   { key: 'vendors', path: '/vendors', label: 'Vendors', icon: 'briefcase' },
   { key: 'users', path: '/users', label: 'Users', icon: 'users' },
   { key: 'bookings', path: '/bookings', label: 'Bookings', icon: 'calendar-check' },
+  { key: 'verify-booking', path: '/verify-booking', label: 'Verify booking', icon: 'shield-check' },
   { key: 'events', path: '/events', label: 'Events', icon: 'ticket', badge: 'events' },
   { key: 'payouts', path: '/payouts', label: 'Payouts', icon: 'wallet' },
   { key: 'refunds', path: '/refunds', label: 'Refunds', icon: 'inbox' },
   { key: 'reviews', path: '/reviews', label: 'Reviews', icon: 'star' },
+  { key: 'homepage', path: '/homepage', label: 'Homepage', icon: 'image' },
   { key: 'settings', path: '/settings', label: 'Platform Settings', icon: 'settings' },
   { key: 'audit', path: '/audit', label: 'Audit Log', icon: 'file-text' },
 ]
 
 const TITLES = {
   '/': 'Dashboard', '/register-venue': 'Register a venue', '/approvals': 'Venue approvals', '/venues': 'Live venues', '/all-venues': 'All venues', '/vendors': 'Vendors',
-  '/users': 'Users', '/bookings': 'Bookings', '/events': 'Events', '/payouts': 'Payouts', '/refunds': 'Refunds', '/reviews': 'Reviews moderation',
+  '/users': 'Users', '/bookings': 'Bookings', '/verify-booking': 'Verify booking', '/events': 'Events', '/payouts': 'Payouts', '/refunds': 'Refunds', '/reviews': 'Reviews moderation',
   '/deletion-requests': 'Deletion requests',
-  '/settings': 'Platform settings', '/audit': 'Audit log',
+  '/settings': 'Platform settings', '/audit': 'Audit log', '/homepage': 'Homepage content',
 }
 
 function LoadingSkeleton() {

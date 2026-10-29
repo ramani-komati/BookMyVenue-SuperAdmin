@@ -2,6 +2,7 @@ import { useAdmin } from '../../context/AdminContext.jsx'
 import useViewport from '../../hooks/useViewport.js'
 import Button from '../../components/ui/Button.jsx'
 import Icon from '../../components/ui/Icon.jsx'
+import CustomerReviews from './CustomerReviews.jsx'
 
 export default function ReviewsPage() {
   const { reviews, removeReview, openModal, logAudit, showToast, venues, openDrawer } = useAdmin()
@@ -31,6 +32,9 @@ export default function ReviewsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Every genuine customer rating & review — hide / restore only. */}
+      <CustomerReviews />
+
       <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>
         Reviews reported by vendors or users. Keep them public or remove them from the venue page.
       </div>

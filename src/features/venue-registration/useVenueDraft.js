@@ -8,6 +8,11 @@ import { toUserMessage } from '@/services/errors';
 import { reportError } from '@/utils/reportError';
 import useDebouncedCallback from '@/hooks/useDebouncedCallback';
 import { blankDraft, PATCH_SECTIONS } from './model';
+import { checkUpload } from '@/utils/imageSpecs';
+import { readImageSize } from '@/utils/imageFile';
+
+// Which upload rules (utils/imageSpecs.js) each gallery follows.
+const GALLERY_SPEC = { venuePhotos: 'venuePhoto', serviceImages: 'serviceImage' };
 
 const tempId = () => `temp_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -229,6 +234,16 @@ export default function useVenueDraft() {
           return prev;
         });
         if (!allowed) break;
+
+        // Type, size and pixel rules before the upload (the server checks
+        // the same again). A refused file is named and skipped.
+        // eslint-disable-next-line no-await-in-loop
+        const dims = await readImageSize(file);
+        const verdict = checkUpload(GALLERY_SPEC[gallery] || 'venuePhoto', { type: file.type, bytes: file.size, ...(dims || {}) });
+        if (verdict.problem) {
+          setPhotoError(`"${file.name}" wasn't uploaded — ${verdict.problem}`);
+          continue;
+        }
 
         const placeholder = { id: tempId(), name: file.name, url: URL.createObjectURL(file), uploading: true };
         setPhotos((prev) => ({ ...prev, [gallery]: [...(prev[gallery] || []), placeholder] }));
