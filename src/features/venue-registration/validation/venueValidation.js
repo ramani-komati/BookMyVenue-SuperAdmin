@@ -9,7 +9,11 @@
  *    but additionally blocks on invalid formats, per the project rules.
  */
 
-import { PLAYZONE_SPORTS } from '@/constants/venue';
+import { draftGroup } from '../../../constants/categories.js';
+import { GSTIN_RE, offeringErrors, offeringKindOf, offeringMissing } from '../offerings/model.js';
+import { timingsErrors } from '../../../utils/venueTimings.js';
+import { selectedSports } from '../../../constants/subcategories.js';
+import { findDistrict, findState, pincodeError } from '../../../utils/indiaRegions.js';
 import {
   validateAccountNumber,
   validateAmount,
@@ -23,7 +27,7 @@ import {
   validateVenueName,
   validateWholeNumber,
   validateDescription,
-} from '@/utils/validation';
+} from '../../../utils/validation.js';
 
 const truthy = (x) => x != null && String(x).trim() !== '';
 const clean = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v != null));
@@ -39,12 +43,42 @@ export function basicsErrors(b = {}) {
   });
 }
 
+// India's extent (with a margin) — the backend applies the same bounds.
+const INDIA_LAT = [6, 38];
+const INDIA_LNG = [68, 98];
+
+/** The optional map pin: both halves or neither, inside India. */
+function mapPinErrors(l) {
+  const lat = String(l.latitude ?? '').trim();
+  const lng = String(l.longitude ?? '').trim();
+  if (!lat && !lng) return {};
+  const nLat = Number(lat);
+  const nLng = Number(lng);
+  if (!lat || !Number.isFinite(nLat)) return { latitude: 'Enter a latitude, e.g. 17.385044' };
+  if (!lng || !Number.isFinite(nLng)) return { longitude: 'Enter a longitude, e.g. 78.486671' };
+  if (nLat < INDIA_LAT[0] || nLat > INDIA_LAT[1] || nLng < INDIA_LNG[0] || nLng > INDIA_LNG[1]) {
+    return { latitude: 'This point is outside India — check the latitude and longitude' };
+  }
+  return {};
+}
+
 export function locationErrors(l = {}) {
+  const state = findState(l.stateName);
+  let stateName = null;
+  if (!truthy(l.stateName)) stateName = 'State is required';
+  else if (!state) stateName = 'Choose a state or union territory from the list';
+  let district = null;
+  if (!truthy(l.district)) district = 'District is required';
+  else if (state && !findDistrict(state.name, l.district)) district = `Choose a district in ${state.name}`;
+  const pinFormat = validatePincode(l.pincode, { required: true });
   return clean({
     houseStreet: !truthy(l.houseStreet) ? 'Street address is required' : null,
-    pincode: validatePincode(l.pincode, { required: true }),
-    stateName: !truthy(l.stateName) ? 'State is required' : null,
+    pincode: pinFormat || pincodeError(l.pincode, state?.name),
+    stateName,
+    district,
+    city: !truthy(l.city) ? 'City / town is required' : null,
     mapsLink: validateMapsLink(l.mapsLink, { required: true }),
+    ...mapPinErrors(l),
   });
 }
 
@@ -57,13 +91,37 @@ export function payoutErrors(p = {}) {
     payoutPhone: validatePhone(p.payoutPhone, { required: true, label: 'Payout phone' }),
     upiId: validateUpi(p.upiId, { required: false }),
     pan: validatePan(p.pan, { required: false }),
+    // Optional business document (Resort / Big Screen Surprise forms).
+    gstin: truthy(p.gstin) && !GSTIN_RE.test(String(p.gstin).trim()) ? 'Enter a valid 15-character GSTIN' : null,
   });
 }
 
+/** Fitness / Resort / Big Screen Surprise owners accept the platform
+ *  commission and terms with their bank details. */
+const needsTermsAgreement = (draft) => Boolean(offeringKindOf(draft?.details?.primaryCategory));
+
 export function detailsErrors(d = {}) {
+  // Fitness / Resort / Big Screen Surprise: their own form and rules
+  // (offerings/model.js) — no per-unit capacity or price.
+  if (offeringKindOf(d.primaryCategory)) {
+    return clean({
+      primaryCategory: !truthy(d.primaryCategory) ? 'Select a primary category' : null,
+      ...timingsErrors(d),
+      ...offeringErrors(d),
+    });
+  }
   const isPlayzone = d.primaryCategory === 'Playzone';
   const errors = {
-    primaryCategory: !truthy(d.primaryCategory) ? 'Select a primary category' : null,
+    // Celebrate needs its venue type (Private Hall / Private Theatre / Open
+    // Air Theatre) as well; every other category has exactly one.
+    primaryCategory: !truthy(d.primaryCategory)
+      ? (draftGroup(d) ? 'Select the venue type' : 'Select a primary category')
+      : null,
+    // Venue Timings (every category) — open + close time, or open 24 hours.
+    ...timingsErrors(d),
+    // "Others" (a vendor-registered venue being edited) needs its typed name.
+    customCategory:
+      d.primaryCategory === 'Others' && !truthy(d.customCategory) ? 'Enter the category name' : null,
   };
   if (isPlayzone) {
     errors.seatingCapacity = validateWholeNumber(d.seatingCapacity, {
@@ -111,7 +169,7 @@ export function fieldErrors(section, data) {
 
 const REQUIRED_KEYS = {
   basics: ['venueName', 'phone'],
-  location: ['houseStreet', 'pincode', 'stateName', 'mapsLink'],
+  location: ['houseStreet', 'pincode', 'stateName', 'district', 'city', 'mapsLink', 'latitude', 'longitude'],
   payout: ['acctHolder', 'bankName', 'acctNumber', 'ifsc', 'payoutPhone'],
 };
 
@@ -137,17 +195,22 @@ export function stepValid(stepIndex, draft) {
       return (draft.photos?.venuePhotos || []).length > 0;
     case 3: {
       if (!truthy(d.primaryCategory)) return false;
+      if (Object.keys(timingsErrors(d)).length > 0) return false;
+      if (offeringKindOf(d.primaryCategory)) return Object.keys(offeringErrors(d)).length === 0;
+      if (d.primaryCategory === 'Others' && !truthy(d.customCategory)) return false;
       const e = detailsErrors(d);
       const capOk = isPlayzone ? !e.seatingCapacity : !e.capacity;
       // Non-Playzone pricing: the per-unit price AND at least one pricing
       // package (name + price) are required — the backend's submit gate
       // demands a package. Playzone needs at least one sport selected.
-      const priced = isPlayzone ? PLAYZONE_SPORTS.some((s) => d.sports?.[s]) : !e.price;
+      const priced = isPlayzone ? selectedSports(d).length > 0 : !e.price;
       const packaged = isPlayzone || hasValidPackage(d);
       return capOk && priced && packaged && (d.amenities || []).length > 0;
     }
     case 4: {
       const e = payoutErrors(draft.payout);
+      if (e.gstin) return false;
+      if (needsTermsAgreement(draft) && draft.payout?.agreedToTerms !== true) return false;
       return REQUIRED_KEYS.payout.every((k) => !e[k]);
     }
     default:
@@ -171,17 +234,21 @@ export function missingFor(stepIndex, draft) {
     if (!truthy(l.houseStreet)) m.push('Street address');
     if (!truthy(l.pincode)) m.push('Pincode');
     if (!truthy(l.stateName)) m.push('State');
+    if (!truthy(l.district)) m.push('District');
+    if (!truthy(l.city)) m.push('City / Town');
     if (!truthy(l.mapsLink)) m.push('Google Maps link');
   } else if (stepIndex === 2) {
     if ((draft.photos?.venuePhotos || []).length === 0) m.push('At least one venue photo');
   } else if (stepIndex === 3) {
-    if (!truthy(d.primaryCategory)) m.push('Primary category');
+    if (!truthy(d.primaryCategory)) m.push(draftGroup(d) ? 'Venue type' : 'Primary category');
+    if (Object.keys(timingsErrors(d)).length > 0) m.push('Venue timings (open and close time, or Open 24 hours)');
+    if (offeringKindOf(d.primaryCategory)) return [...m, ...offeringMissing(d)];
     const capMissing = isPlayzone
       ? !truthy(d.seatingCapacity)
       : !truthy((d.screenConfig?.[0] || {}).max);
     if (capMissing) m.push(isPlayzone ? 'On-site capacity' : 'Capacity (max persons)');
     const pricedMissing = isPlayzone
-      ? !PLAYZONE_SPORTS.some((s) => d.sports?.[s])
+      ? selectedSports(d).length === 0
       : !truthy((d.screenConfig?.[0] || {}).price);
     if (pricedMissing) m.push(isPlayzone ? 'At least one sport' : 'Price');
     if (!isPlayzone && !hasValidPackage(d)) m.push('At least one pricing package (name + price)');
@@ -192,6 +259,8 @@ export function missingFor(stepIndex, draft) {
     if (!truthy(p.acctNumber)) m.push('Account number');
     if (!truthy(p.ifsc)) m.push('IFSC code');
     if (!truthy(p.payoutPhone)) m.push('Payout phone');
+    if (needsTermsAgreement(draft) && p.agreedToTerms !== true) m.push('Agreement to the platform commission and terms');
+    if (payoutErrors(p).gstin) m.push('A valid GSTIN (entered on the Details step)');
   }
   return m;
 }

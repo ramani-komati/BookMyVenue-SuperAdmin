@@ -1,5 +1,6 @@
 import { Select, TextField } from '@/reg-ui';
-import { PLAYZONE_SPORTS, SPORT_CAP_OPTIONS, SPORT_CFG_DEFAULT, SPORT_UNIT } from '@/constants/venue';
+import { SPORT_CAP_OPTIONS, SPORT_CFG_DEFAULT, SPORT_UNIT } from '@/constants/venue';
+import { selectedSports } from '@/constants/subcategories';
 import { sanitizeAmount, sanitizeDigitsMax } from '@/utils/validation';
 import useDetails from './useDetails';
 
@@ -152,7 +153,8 @@ function SportBlock({ sport }) {
  */
 export default function PerSportPricingPanel() {
   const { details } = useDetails();
-  const selected = PLAYZONE_SPORTS.filter((s) => details.sports?.[s]);
+  // Built-in sports and any added with "Others" — each priced the same way.
+  const selected = selectedSports(details);
 
   return (
     <div className="rv-panel">

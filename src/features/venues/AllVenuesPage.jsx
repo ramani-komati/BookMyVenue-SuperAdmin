@@ -1,5 +1,8 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext.jsx'
+import { categoryDisplay } from '../../constants/categories.js'
+import Icon from '../../components/ui/Icon.jsx'
 import useViewport from '../../hooks/useViewport.js'
 import { adminApi } from '../../services/adminApi.js'
 import { placeOf } from '../../utils/format.js'
@@ -21,7 +24,27 @@ const venueMeta = (status) => VENUE_META[status] || ['draft', status || 'Unknown
 // Filter chips in lifecycle order; only chips with at least one venue render.
 const STATUS_ORDER = ['live', 'paused', 'deletion_requested', 'pending', 'rejected', 'draft', 'deleted']
 
-const GRID = { display: 'grid', gridTemplateColumns: '2.5fr 1.2fr 140px 100px 100px 80px 100px 150px', minWidth: 1140, gap: 10 }
+const GRID = { display: 'grid', gridTemplateColumns: '2.5fr 1.2fr 170px 100px 100px 80px 100px 150px 90px', minWidth: 1260, gap: 10 }
+
+// Edit opens the full venue editor (VenueEditPage) — every vendor-submitted
+// detail except bank details. A deleted venue is history and can't be edited.
+function EditButton({ venue, onEdit }) {
+  if (venue.status === 'deleted') return null
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onEdit(venue) }}
+      aria-label={`Edit ${venue.name}`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, padding: '6px 12px',
+        border: '1px solid var(--border-default)', borderRadius: 999, background: 'var(--surface-card)',
+        color: 'var(--text-heading)', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+      }}
+    >
+      <Icon name="pencil" size={14} /> Edit
+    </button>
+  )
+}
 
 const dateLabel = (iso) => {
   if (!iso) return ''
@@ -39,6 +62,8 @@ const dateLabel = (iso) => {
  */
 export default function AllVenuesPage() {
   const { venues, openDrawer } = useAdmin()
+  const navigate = useNavigate()
+  const editVenue = (v) => navigate(`/all-venues/${encodeURIComponent(v.id)}/edit`)
   const { width } = useViewport()
   const compact = width < 768
   const [statusFilter, setStatusFilter] = useState('all')
@@ -89,11 +114,13 @@ export default function AllVenuesPage() {
           <Badge status={badge} size="sm">{label}</Badge>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 14.5 }}>
-          <span style={{ fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '4px 11px', borderRadius: 999, fontSize: 13.5 }}>{v.category}</span>
+          <span style={{ fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '4px 11px', borderRadius: 999, fontSize: 13.5 }}>{categoryDisplay(v.category)}</span>
           <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{v.price}/hr</span>
           <span style={{ color: 'var(--text-muted)' }}>★ {v.rating}</span>
           <span style={{ color: 'var(--text-muted)' }}>{v.bookings} bookings</span>
           {dead && v.deletedAt && <span style={{ color: 'var(--error-600)', fontWeight: 700, fontSize: 13.5 }}>Deleted {dateLabel(v.deletedAt)}</span>}
+          <span style={{ flex: 1 }} />
+          <EditButton venue={v} onEdit={editVenue} />
         </div>
       </div>
     )
@@ -130,7 +157,7 @@ export default function AllVenuesPage() {
       ) : shown.length > 0 && (
         <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
           <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-            <div>Venue</div><div>Vendor</div><div>Category</div><div>City</div><div>Price/hr</div><div>Rating</div><div>Bookings</div><div>Status</div>
+            <div>Venue</div><div>Vendor</div><div>Category</div><div>City</div><div>Price/hr</div><div>Rating</div><div>Bookings</div><div>Status</div><div aria-hidden="true" />
           </div>
 
           {shown.map((v) => {
@@ -151,7 +178,7 @@ export default function AllVenuesPage() {
                   </div>
                 </div>
                 <div style={{ fontSize: 16 }}>{v.vendor}</div>
-                <div><span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '5px 12px', borderRadius: 999, whiteSpace: 'nowrap' }}>{v.category}</span></div>
+                <div><span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--navy-600)', background: 'var(--navy-50)', padding: '5px 12px', borderRadius: 999, whiteSpace: 'nowrap' }}>{categoryDisplay(v.category)}</span></div>
                 <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{placeOf(v)}</div>
                 <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{v.price}</div>
                 <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{v.rating}</div>
@@ -160,6 +187,7 @@ export default function AllVenuesPage() {
                   <Badge status={badge} size="sm">{label}</Badge>
                   {dead && v.deletedAt && <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--error-600)', whiteSpace: 'nowrap' }}>on {dateLabel(v.deletedAt)}</span>}
                 </div>
+                <div><EditButton venue={v} onEdit={editVenue} /></div>
               </div>
             )
           })}

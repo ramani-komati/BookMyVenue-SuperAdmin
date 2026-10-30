@@ -1,0 +1,58 @@
+/* Fitness / Resort / Big Screen Surprise form pieces. Identical in the
+   super admin app. Builds on the wizard's own .rv-* classes. */
+.rv-off-sub {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
+  color: var(--text-heading);
+  margin: 22px 0 10px;
+}
+.rv-off-sub:first-of-type { margin-top: 4px; }
+.rv-off-note { font-size: var(--text-sm); color: var(--text-muted); margin: -4px 0 14px; line-height: 1.5; }
+.rv-off-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 16px; }
+.rv-off-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.rv-off-days { display: flex; flex-wrap: wrap; gap: 8px; }
+.rv-off-day {
+  min-width: 52px;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  color: var(--text-heading);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.rv-off-day[aria-pressed='true'] { background: var(--red-50); border-color: var(--brand-accent); color: var(--brand-accent); }
+.rv-off-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rv-off-card[data-off='true'] { opacity: 0.72; }
+.rv-off-cardhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rv-off-cardtitle { font-weight: var(--fw-bold); color: var(--text-heading); font-size: var(--text-base); }
+.rv-off-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
+.rv-off-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.rv-off-row--4 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr) auto; }
+.rv-off-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.rv-off-error { color: var(--error-700); font-size: var(--text-sm); font-weight: var(--fw-semibold); margin-top: 6px; }
+.rv-off-preview {
+  border-radius: var(--radius-md);
+  background: #0b0b12;
+  color: #fff;
+  padding: 18px;
+  text-align: center;
+  font-weight: 800;
+}
+@media (max-width: 900px) {
+  .rv-off-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .rv-off-grid-3, .rv-off-grid-2, .rv-off-row, .rv-off-row--4 { grid-template-columns: minmax(0, 1fr); }
+  .rv-off-row > button, .rv-off-row--4 > button { justify-self: start; }
+}

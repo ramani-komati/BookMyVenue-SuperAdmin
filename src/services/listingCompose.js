@@ -8,32 +8,21 @@
  * seeded, truncated or faked — every value comes from the submitted draft.
  */
 
-import { PLAYZONE_SPORTS, ADDONS, CAT_UNIT } from '@/constants/venue'
+import { ADDONS, CAT_UNIT } from '../constants/venue.js'
+import { selectedCustomNames, selectedSports } from '../constants/subcategories.js'
+import { OTHERS, VENUE_TYPES, draftGroup } from '../constants/categories.js'
+import { timingsFromDetails } from '../utils/venueTimings.js'
+import { hasLegacyResortPricing, offeringKindOf, offeringPrice, recordBlock } from '../features/venue-registration/offerings/model.js'
 
 
-const CATEGORY_MAP = {
-  'Private Hall': 'Party hall',
-  'Private Theatre': 'Private theatre',
-  'Open Theatre': 'Private theatre',
-  Resort: 'Resort',
-  Playzone: 'Play zone',
-  Playstation: 'Playstation',
-}
-
-// A Playzone offering a single sport browses under that sport's own category.
-const SPORT_CATEGORY = {
-  'Box Cricket': 'Box cricket',
-  'Swimming Pool': 'Swimming pool',
-  Pickleball: 'Pickleball',
-}
-
+// Registration venue type → browse category (constants/categories.js, the
+// model every screen shares — identical to the vendor portal's mapper).
+// Open Air Theatres publish as 'Open-air theatre', every Sports venue as
+// 'Play zone' (its sports stay sub-categories), "Others" as its typed name.
 function categoryFromDraft(details = {}) {
-  if (details.primaryCategory === 'Playzone') {
-    const chosen = PLAYZONE_SPORTS.filter((s) => details.sports?.[s])
-    if (chosen.length === 1 && SPORT_CATEGORY[chosen[0]]) return SPORT_CATEGORY[chosen[0]]
-    return 'Play zone'
-  }
-  return CATEGORY_MAP[details.primaryCategory] || details.primaryCategory || 'Party hall'
+  const type = details.primaryCategory
+  if (type === OTHERS) return String(details.customCategory || '').trim() || OTHERS
+  return VENUE_TYPES[type]?.category || details.primaryCategory || 'Party hall'
 }
 
 const UNIT_MAP = {
@@ -43,11 +32,17 @@ const UNIT_MAP = {
   Resort: '/ day',
   Playzone: '/ hour',
   Playstation: '/ hour',
+  Gym: '/ hour',
+  'Big Screen Surprise': '/ surprise',
 }
 
 /** Best displayable starting price from whichever pricing model the draft used. */
 function priceFromDraft(details = {}) {
   const positives = (arr) => arr.map((v) => parseFloat(v)).filter((n) => Number.isFinite(n) && n > 0)
+  // Fitness / Resort / Big Screen Surprise: the cheapest plan, package or
+  // surprise (a legacy resort's hourly lawn price still counts below).
+  const offered = offeringPrice(details)
+  if (offered && !hasLegacyResortPricing(details)) return offered.price
   const isPlayzone = details.primaryCategory === 'Playzone'
 
   if (isPlayzone) {
@@ -68,8 +63,13 @@ function priceFromDraft(details = {}) {
 }
 
 /** The rich, vendor-entered info shown on the venue detail page. */
-export function detailFromDraft(basics = {}, location = {}, details = {}) {
+export function detailFromDraft(basics = {}, location = {}, details = {}, photos = {}) {
   const isPlayzone = details.primaryCategory === 'Playzone'
+  // Fitness / Resort / Big Screen Surprise sell one thing per venue — never
+  // pitch / screen sibling listings (a theatre's screens are part of its
+  // surprise settings). A legacy resort keeps its lawns.
+  const offering = offeringKindOf(details.primaryCategory)
+  const singleUnit = isPlayzone || (offering && !hasLegacyResortPricing(details))
   const addons = [
     ...ADDONS.filter((a) => details.addons?.[a.key]).map((a) => ({
       name: a.label,
@@ -77,12 +77,23 @@ export function detailFromDraft(basics = {}, location = {}, details = {}) {
     })),
     ...(details.customAddons || []).filter((c) => c?.name?.trim()).map((c) => ({ name: c.name, price: c.price || '' })),
   ]
-  const unitCount = isPlayzone ? 1 : Math.max(1, Math.min(20, parseInt(details.numScreens || '1', 10) || 1))
+  const unitCount = singleUnit ? 1 : Math.max(1, Math.min(20, parseInt(details.numScreens || '1', 10) || 1))
   return {
+    // The venue type and primary category as registered (see vendor portal).
+    primaryCategory: details.primaryCategory || '',
+    categoryGroup: draftGroup(details) || '',
+    customCategory: details.primaryCategory === OTHERS ? String(details.customCategory || '').trim() : '',
+    // Venue Timings ({open, close, open24Hours} or null), validated again by
+    // the server (venues/timings.py).
+    timings: timingsFromDetails(details),
     description: details.fullDescription?.trim() || basics.shortDescription?.trim() || '',
     paused: Boolean(details.paused),
     pauseReason: details.paused ? String(details.pauseReason || '').trim() : '',
-    amenities: Array.isArray(details.amenities) ? details.amenities : [],
+    amenities: [...new Set([
+      ...(Array.isArray(details.amenities) ? details.amenities : []),
+      // A resort's facility checklists show as its amenities too.
+      ...(offering === 'resort' ? Object.values(details.resort?.facilities || {}).flat() : []),
+    ])],
     parking: Boolean(details.parkingAvailable),
     dining: Boolean(details.diningAvailable),
     capacity: isPlayzone ? details.seatingCapacity || '' : details.screenConfig?.[0]?.max || '',
@@ -110,7 +121,7 @@ export function detailFromDraft(basics = {}, location = {}, details = {}) {
         expiry: (o.expiry || '').trim(),
       })),
     sports: isPlayzone
-      ? PLAYZONE_SPORTS.filter((s) => details.sports?.[s]).map((s) => {
+      ? selectedSports(details).map((s) => {
           const cfg = details.sportConfig?.[s] || {}
           const units = Math.max(1, Math.min(20, parseInt(cfg.units || '1', 10) || 1))
           const unitPrices = Array.from({ length: units }, (_, i) => {
@@ -127,23 +138,45 @@ export function detailFromDraft(basics = {}, location = {}, details = {}) {
       : [],
     addons,
     occasions: Object.keys(details.subCategories || {}).filter((k) => details.subCategories[k]),
+    // Sub-categories added with "Others" (constants/subcategories.js) — the
+    // server keeps them off customer pages until the super admin approves.
+    customSubCategories: selectedCustomNames(details),
     extraPersonPrice: details.extraPersonPrice || '',
     maxExtraPersons: details.maxExtraPersons || '',
     extraHourPrice: details.extraHourPrice || '',
     maxExtraHours: details.maxExtraHours || '',
     contactPhone: basics.phone || '',
-    address: [location.houseStreet, location.area, location.city, location.stateName, location.pincode]
+    address: [location.unitNumber, location.houseStreet, location.roadNumber, location.area, location.city, location.district, location.stateName, location.pincode]
       .map((x) => x?.trim?.())
-      .filter(Boolean)
+      .filter((x, i, all) => x && all.findIndex((y) => y?.toLowerCase?.() === x.toLowerCase()) === i)
       .join(', '),
     mapsLink: location.mapsLink || '',
+    // The vendor-confirmed map location (wizard "Map location"), used by the
+    // backend only when the maps link carries no exact pin (venues/geo.py).
+    ...mapPinFromLocation(location),
+    landmark: String(location.landmark || '').trim(),
+    // The membership plans / resort packages / surprise shows (public part
+    // only — owner and manager contacts stay in the draft). The server
+    // validates this block and books against it (backend offerings app).
+    ...(offering ? { [offering]: recordBlock(details, photos) } : {}),
   }
+}
+
+/** { mapPin: { lat, lng } } from the Location step's optional pin, or {}. */
+function mapPinFromLocation(location = {}) {
+  const lat = Number(location.latitude)
+  const lng = Number(location.longitude)
+  if (String(location.latitude ?? '').trim() === '' || String(location.longitude ?? '').trim() === '') return {}
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return {}
+  return { mapPin: { lat, lng } }
 }
 
 /** Map a submitted registration draft to a browsable venue listing record. */
 export function listingFromDraft(draftId, draft) {
   const { basics = {}, location = {}, details = {}, photos = {} } = draft || {}
-  const city = location.city?.trim() || location.district?.trim() || 'Warangal'
+  // No default city — venues can be anywhere in India, and the wizard
+  // requires both city and district.
+  const city = location.city?.trim() || location.district?.trim() || ''
   const locality = location.area?.trim() || location.district?.trim() || city
   const urls = [
     ...(photos.venuePhotos || []).map((p) => p?.url),
@@ -157,9 +190,10 @@ export function listingFromDraft(draftId, draft) {
     locality,
     city,
     district: location.district?.trim() || '',
-    location: locality === city ? city : `${locality}, ${city}`,
+    state: location.stateName?.trim() || '',
+    location: locality === city ? city : [locality, city].filter(Boolean).join(', '),
     price: priceFromDraft(details) || '499',
-    unit: UNIT_MAP[details.primaryCategory] || '/ slot',
+    unit: (!hasLegacyResortPricing(details) && offeringPrice(details)?.unit) || UNIT_MAP[details.primaryCategory] || '/ slot',
     meta: 'New',
     image: gallery[0] || null,
     gallery,
@@ -169,6 +203,6 @@ export function listingFromDraft(draftId, draft) {
     submittedAt: new Date().toISOString(),
     paused: Boolean(details.paused),
     pauseReason: details.paused ? String(details.pauseReason || '').trim() : '',
-    detail: detailFromDraft(basics, location, details),
+    detail: detailFromDraft(basics, location, details, photos),
   }
 }

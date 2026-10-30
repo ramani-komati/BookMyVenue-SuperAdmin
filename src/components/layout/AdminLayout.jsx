@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { key: 'approvals', path: '/approvals', label: 'Approvals', icon: 'check-circle', badge: true },
   { key: 'venues', path: '/venues', label: 'Live venues', icon: 'building-2' },
   { key: 'all-venues', path: '/all-venues', label: 'All venues', icon: 'archive' },
+  { key: 'subcategories', path: '/subcategories', label: 'Sub-categories', icon: 'tag' },
   { key: 'deletion-requests', path: '/deletion-requests', label: 'Deletion requests', icon: 'inbox', badge: 'deletions' },
   { key: 'vendors', path: '/vendors', label: 'Vendors', icon: 'briefcase' },
   { key: 'users', path: '/users', label: 'Users', icon: 'users' },
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { key: 'refunds', path: '/refunds', label: 'Refunds', icon: 'inbox' },
   { key: 'reviews', path: '/reviews', label: 'Reviews', icon: 'star' },
   { key: 'homepage', path: '/homepage', label: 'Homepage', icon: 'image' },
+  { key: 'campaigns', path: '/campaigns', label: 'Email Campaigns', icon: 'mail' },
   { key: 'settings', path: '/settings', label: 'Platform Settings', icon: 'settings' },
   { key: 'audit', path: '/audit', label: 'Audit Log', icon: 'file-text' },
 ]
@@ -35,6 +37,8 @@ const TITLES = {
   '/users': 'Users', '/bookings': 'Bookings', '/verify-booking': 'Verify booking', '/events': 'Events', '/payouts': 'Payouts', '/refunds': 'Refunds', '/reviews': 'Reviews moderation',
   '/deletion-requests': 'Deletion requests',
   '/settings': 'Platform settings', '/audit': 'Audit log', '/homepage': 'Homepage content',
+  '/campaigns': 'Email campaigns',
+  '/subcategories': 'Sub-categories',
 }
 
 function LoadingSkeleton() {
@@ -117,6 +121,12 @@ export default function AdminLayout() {
   if (approvalIdMatch) {
     const sel = approvals.find((a) => String(a.id) === decodeURIComponent(approvalIdMatch[1]))
     if (sel) pageTitle = 'Review: ' + sel.name
+  }
+  // All venues → Edit keeps "All venues" highlighted in the sidebar.
+  const editMatch = location.pathname.match(/^\/all-venues\/([^/]+)\/edit$/)
+  if (editMatch) {
+    const sel = venues.find((v) => String(v.id) === decodeURIComponent(editMatch[1]))
+    pageTitle = sel ? 'Edit: ' + sel.name : 'Edit venue'
   }
 
   const signOut = () => {

@@ -6,7 +6,41 @@ const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV ? '/api' : 'https://bookmyvenues-backend.onrender.com/api')
 
+// A failed geocoder call → an Error carrying the HTTP status (503 = no
+// provider configured, 404 = older backend), like the customer app's ApiError.
+async function geoRequest(path) {
+  const res = await fetch(`${API_BASE}${path}`)
+  if (!res.ok) {
+    const err = new Error(`Request failed (${res.status})`)
+    err.status = res.status
+    throw err
+  }
+  return res.json()
+}
+
 export const catalogApi = {
+  // Places matching an address (the backend's geocoding proxy; the key stays
+  // on the server). `scope` { state, district } narrows it. Throws on failure.
+  async searchPlaces(query, scope = {}) {
+    const qs = new URLSearchParams({ q: query })
+    if (scope.state) qs.set('state', scope.state)
+    if (scope.district) qs.set('district', scope.district)
+    const res = await geoRequest(`/geo/search?${qs}`)
+    return Array.isArray(res?.results) ? res.results : []
+  },
+
+  // Town / locality suggestions while typing (Google Places via the backend).
+  async autocompletePlaces(query, { session, bias } = {}) {
+    const qs = new URLSearchParams({ q: query })
+    if (session) qs.set('session', session)
+    if (bias?.lat != null && bias?.lng != null) {
+      qs.set('lat', String(bias.lat))
+      qs.set('lng', String(bias.lng))
+    }
+    const res = await geoRequest(`/geo/autocomplete?${qs}`)
+    return Array.isArray(res?.suggestions) ? res.suggestions : []
+  },
+
   async resolveMapsLink(link) {
     if (!link) return null
     try {

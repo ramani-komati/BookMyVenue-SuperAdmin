@@ -13,16 +13,24 @@ function kicker(form) {
 }
 
 /**
- * One hero frame, drawn at a fraction of its real size: the real banner's
- * proportions (from the server's imageSpec.frames, computed from the
- * customer site's CSS), object-fit: cover centred — so what is trimmed here
- * is exactly what that screen trims.
+ * One hero frame, drawn at a fraction of its real size, by the customer
+ * site's two rules (HeroCarousel):
+ *   • image-only banner — the frame takes the artwork's own shape and shows
+ *     it WHOLE (never cropped); the caption gives the height it gets there;
+ *   • title over the image — the real banner's proportions (the server's
+ *     imageSpec.frames, from the site's CSS), object-fit: cover on the
+ *     admin's chosen focal point — so what is trimmed here is exactly what
+ *     that screen trims.
  */
 function Frame({ frame, form, image, dims, width }) {
   const [broken, setBroken] = useState(false)
-  const scale = width / frame.width
   const phone = frame.viewport <= 640
   const showText = !image || broken || form.showText
+  const artOnly = Boolean(image) && !broken && !showText
+  const artRatio = dims?.width && dims?.height ? Math.min(6, Math.max(1.2, dims.width / dims.height)) : (phone && form.imageMobile ? 2 : 4)
+  const shown = artOnly ? { width: frame.width, height: Math.round(frame.width / artRatio) } : frame
+  const scale = width / shown.width
+  const focus = (phone ? form.imageMobilePosition : form.imagePosition) || 'center'
   const code = ['percent', 'flat'].includes(form.type) && form.showCode ? String(form.code || '').toUpperCase() : ''
   const f = (px) => Math.max(7, px * scale * (phone ? 1 : 1.25))
   return (
@@ -30,25 +38,24 @@ function Frame({ frame, form, image, dims, width }) {
       <div
         style={{
           // Shrinks with a narrow panel but never changes shape.
-          position: 'relative', width: '100%', maxWidth: width, aspectRatio: `${frame.width} / ${frame.height}`,
+          position: 'relative', width: '100%', maxWidth: width, aspectRatio: `${shown.width} / ${shown.height}`,
           borderRadius: Math.max(6, 16 * scale),
           overflow: 'hidden', background: 'var(--navy-800)', display: 'flex',
         }}
       >
         {image && !broken && (
-          <img src={image} alt="" onError={() => setBroken(true)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={image} alt="" onError={() => setBroken(true)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: artOnly ? 'contain' : 'cover', objectPosition: artOnly ? 'center' : focus }} />
         )}
-        {image && !broken && (showText || code || form.ctaLabel) && (
+        {image && !broken && showText && (
           <span
             aria-hidden="true"
             style={{
               position: 'absolute', inset: 0,
-              background: showText
-                ? (phone ? 'rgba(6,21,44,.74)' : 'linear-gradient(90deg, rgba(6,21,44,.92) 0%, rgba(6,21,44,.72) 45%, rgba(6,21,44,.18) 100%)')
-                : 'linear-gradient(20deg, rgba(6,21,44,.6) 0%, rgba(6,21,44,0) 45%)',
+              background: phone ? 'rgba(6,21,44,.74)' : 'linear-gradient(90deg, rgba(6,21,44,.92) 0%, rgba(6,21,44,.72) 45%, rgba(6,21,44,.18) 100%)',
             }}
           />
         )}
+        {!artOnly && (
         <div
           style={{
             position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: showText ? 'center' : 'flex-end',
@@ -73,10 +80,29 @@ function Frame({ frame, form, image, dims, width }) {
             </span>
           )}
         </div>
+        )}
       </div>
+      {/* Image-only banner: like the site, the code and button sit UNDER the
+          artwork so they never cover it. */}
+      {artOnly && (code || form.ctaLabel) && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', maxWidth: width }}>
+          {code && (
+            <span style={{ border: '1px dashed var(--success-600, #079455)', background: 'var(--success-50, #ecfdf3)', color: 'var(--success-700, #067647)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 800 }}>
+              USE CODE {code}
+            </span>
+          )}
+          {form.ctaLabel && (
+            <span style={{ background: 'var(--red-600, #d71620)', color: '#fff', borderRadius: 8, padding: '4px 12px', fontSize: 12.5, fontWeight: 700 }}>
+              {form.ctaLabel}
+            </span>
+          )}
+        </div>
+      )}
       <figcaption style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-        <strong style={{ color: 'var(--text-heading)' }}>{frame.label}</strong> · {frame.width}×{frame.height}px banner
-        {dims?.width && image ? ` · ${cropCaption(dims.width, dims.height, frame.width, frame.height)}` : ''}
+        <strong style={{ color: 'var(--text-heading)' }}>{frame.label}</strong> · {shown.width}×{shown.height}px banner
+        {artOnly
+          ? ' · Shows the whole image'
+          : dims?.width && image ? ` · ${cropCaption(dims.width, dims.height, frame.width, frame.height)}` : ''}
       </figcaption>
     </figure>
   )
@@ -113,7 +139,8 @@ function PromoCardFrame({ form }) {
 /**
  * How the banner will look on each screen size, before it is published.
  * Phones use the phone image when there is one (as the customer site does,
- * at 640px and narrower), otherwise the desktop image cropped.
+ * at 640px and narrower), otherwise the desktop image — whole for an
+ * image-only banner, cropped on its focal point when words go over it.
  */
 export default function BannerPreview({ spec, form }) {
   const frames = spec?.frames || []

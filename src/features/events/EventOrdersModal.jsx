@@ -4,7 +4,7 @@ import { useAdmin } from '../../context/AdminContext.jsx'
 import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 import Icon from '../../components/ui/Icon.jsx'
-import { orderBadge } from './orderStatus.js'
+import { stateBadges } from '../bookings/unifiedBookings.js'
 import { displayRef } from '../../utils/format.js'
 
 /**
@@ -229,8 +229,9 @@ export default function EventOrdersModal({ event, onClose }) {
                 </thead>
                 <tbody>
                   {orders.map((o) => {
-                    // Shared with the main Bookings page (see orderStatus.js).
-                    const [tone, text] = orderBadge(o)
+                    // Shared with the main Bookings page (unifiedBookings.stateBadges):
+                    // the ticket's status and its payment's status, separately.
+                    const sb = stateBadges({ ...o, kind: 'event' })
                     const confirming = confirmId === o.id
                     const busy = busyId === o.id
                     return (
@@ -259,7 +260,10 @@ export default function EventOrdersModal({ event, onClose }) {
                           ₹{inr(o.amount)}
                         </td>
                         <td style={{ padding: '11px 14px' }}>
-                          <Badge status={tone} size="sm">{text}</Badge>
+                          <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                            <Badge status={sb.booking[0]} size="sm">{sb.booking[1]}</Badge>
+                            <Badge status={sb.payment[0]} size="sm">{sb.payment[1]}</Badge>
+                          </span>
                         </td>
                         <td style={{ padding: '11px 14px', width: 160 }}>
                           {!o.removable ? (

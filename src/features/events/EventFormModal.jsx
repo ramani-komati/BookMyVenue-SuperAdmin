@@ -369,11 +369,27 @@ export default function EventFormModal({ event, onClose, onCreate, onUpdate, sho
                   <div style={{ flex: '1 1 130px', minWidth: 0 }}>
                     <label style={label}>Capacity</label>
                     <input
-                      className="bmva" type="number" min="1" value={row.capacity}
+                      className="bmva" type="number" min="1" value={row.unlimited ? '' : row.capacity}
+                      placeholder={row.unlimited ? 'Unlimited' : ''} disabled={row.unlimited}
                       onChange={(e) => setDate(index, { capacity: e.target.value })}
                       style={input}
                     />
                   </div>
+                  {/* Unlimited: any number of people can register for this date. */}
+                  <label
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                      fontSize: 14.5, fontWeight: 600, color: 'var(--text-heading)',
+                      minHeight: 44, flex: '0 0 auto', cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox" checked={Boolean(row.unlimited)}
+                      onChange={(e) => setDate(index, { unlimited: e.target.checked })}
+                      style={{ width: 18, height: 18 }}
+                    />
+                    Unlimited
+                  </label>
                   <label
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 8,

@@ -1,6 +1,7 @@
-// All 33 districts of Telangana — the served state. Mirrors the customer
-// app's registration wizard list (frontend/src/constants/venue.js) so the
-// admin's city filter matches what vendors can actually pick.
+// All 33 districts of Telangana, as the wizard listed them before venues
+// could be registered anywhere in India. Superseded by utils/indiaRegions.js
+// (every state's districts; these older spellings are aliases there). Kept
+// for reference; nothing imports it.
 export const TELANGANA_DISTRICTS = [
   'Adilabad',
   'Bhadradri Kothagudem',

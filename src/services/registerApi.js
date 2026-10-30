@@ -41,6 +41,7 @@ const FORMAT_OK = {
   pan: (v) => /^[A-Z]{5}\d{4}[A-Z]$/.test(v),
   accountNumber: (v) => /^\d{9,18}$/.test(v),
   upi: (v) => /^[\w.-]{2,}@[A-Za-z]{2,}$/.test(v),
+  gstin: (v) => /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(v),
 }
 
 function holdInvalid(out, key, check) {
@@ -68,7 +69,7 @@ function toServerSection(section, data = {}, { strict = false } = {}) {
     if ('acctNumber' in out) out.accountNumber = out.acctNumber
     if ('payoutPhone' in out) out.phone = out.payoutPhone
     if ('upiId' in out) out.upi = out.upiId
-    ;['ifsc', 'pan', 'accountNumber', 'phone', 'upi'].forEach((k) => hold(out, k, FORMAT_OK[k]))
+    ;['ifsc', 'pan', 'accountNumber', 'phone', 'upi', 'gstin'].forEach((k) => hold(out, k, FORMAT_OK[k]))
   }
   return out
 }

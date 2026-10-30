@@ -9,7 +9,7 @@ import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 import ExportButton from '../../components/ui/ExportButton.jsx'
 import { NOT_AVAILABLE, adminBookingInfo } from './bookingInfo.js'
-import { DATE_BASIS_OPTIONS, KIND_LABEL, STATUS_OPTIONS, countByKind, deletePrompt, exportFilename, exportParams, filterBookings, statusBadge, unifyBookings } from './unifiedBookings.js'
+import { DATE_BASIS_OPTIONS, KIND_LABEL, STATUS_OPTIONS, countByKind, deletePrompt, exportFilename, exportParams, filterBookings, stateBadges, unifyBookings } from './unifiedBookings.js'
 
 const selectStyle = {
   fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, color: 'var(--text-heading)',
@@ -29,6 +29,16 @@ const eventWhen = (o) => dateLabel(o.date) + (o.startTime ? ` · ${o.startTime}$
 const ticketSummary = (o) => (o.items || []).map((i) => `${i.qty}× ${i.label}`).join(', ')
 
 // Small "Venue booking" / "Event ticket" chip under the reference.
+// Booking status above payment status — two separate answers per row.
+function StateBadges({ sb }) {
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+      <Badge status={sb.booking[0]} size="sm">{sb.booking[1]}</Badge>
+      <Badge status={sb.payment[0]} size="sm">{sb.payment[1]}</Badge>
+    </span>
+  )
+}
+
 function KindChip({ kind }) {
   const event = kind === 'event'
   return (
@@ -121,7 +131,7 @@ function EventOrderDetails({ o, compact, onDelete }) {
   )
 }
 
-const GRID = { display: 'grid', gridTemplateColumns: '120px 1.5fr 1.1fr 1.3fr 110px 95px 150px', minWidth: 1040, gap: 10 }
+const GRID = { display: 'grid', gridTemplateColumns: '120px 1.5fr 1.1fr 1.3fr 110px 95px 190px', minWidth: 1080, gap: 10 }
 
 export default function BookingsPage() {
   const { bookings, updateBooking, eventOrders, deleteBooking, openModal, logAudit, showToast, settings } = useAdmin()
@@ -172,12 +182,16 @@ export default function BookingsPage() {
   // Which screen/pitch was booked: unit bookings target the unit's own
   // listing ("RK PARTY HOUSE — Screen 2"), so the unit is recoverable from
   // the name; an explicit unitLabel from the API wins when present.
+  // Gym memberships, resort packages and big screen surprises say what they
+  // are (the API's `kind`); their unitLabel names the plan / package / show.
+  const KIND_LABEL = { membership: 'Membership', package: 'Resort package', surprise: 'Big screen surprise' }
   const splitUnit = (b) => {
     const full = String(b.venue || '')
     const hasSep = full.includes(' — ')
+    const unit = b.unitLabel || (hasSep ? full.split(' — ').slice(1).join(' — ') : '')
     return {
       base: hasSep ? full.split(' — ')[0] : full,
-      unit: b.unitLabel || (hasSep ? full.split(' — ').slice(1).join(' — ') : ''),
+      unit: KIND_LABEL[b.kind] ? [KIND_LABEL[b.kind], unit].filter(Boolean).join(' · ') : unit,
     }
   }
   const filters = { type: filterType, status: filterStatus, date: filterDate, basis: dateBasis, from: dateFrom, to: dateTo, query }
@@ -299,7 +313,7 @@ export default function BookingsPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtered.map((b) => {
             if (b.kind === 'event') {
-              const [tone, text] = statusBadge(b)
+              const sb = stateBadges(b)
               const expanded = expandedId === b.key
               return (
                 <div key={b.key} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -308,7 +322,7 @@ export default function BookingsPage() {
                       <span style={{ fontWeight: 800, color: 'var(--text-heading)', fontSize: 15.5 }}>{displayRef(b)}</span>
                       <KindChip kind="event" />
                       <span style={{ flex: 1 }} />
-                      <Badge status={tone} size="sm">{text}</Badge>
+                      <StateBadges sb={sb} />
                     </div>
                     <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)' }}>{b.eventName || '—'}</div>
                     <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{b.customer || '—'}{b.phone ? ` · ${b.phone}` : ''} · {eventWhen(b)}</div>
@@ -324,7 +338,7 @@ export default function BookingsPage() {
                 </div>
               )
             }
-            const [badge, label] = statusBadge(b)
+            const sb = stateBadges(b)
             const expanded = expandedId === b.key
             const canRefund = b.status === 'confirmed' || b.status === 'refund_pending'
             return (
@@ -334,7 +348,7 @@ export default function BookingsPage() {
                     <span style={{ fontWeight: 800, color: 'var(--text-heading)', fontSize: 15.5 }}>{bookingRef(b.id)}</span>
                     <KindChip kind="venue" />
                     <span style={{ flex: 1 }} />
-                    <Badge status={badge} size="sm">{label}</Badge>
+                    <StateBadges sb={sb} />
                   </div>
                   {(() => { const u = splitUnit(b); return (
                     <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -393,10 +407,10 @@ export default function BookingsPage() {
 
         {filtered.map((b) => {
           if (b.kind === 'event') {
-            const [tone, text] = statusBadge(b)
+            const sb = stateBadges(b)
             const expanded = expandedId === b.key
             return (
-              <div key={b.key} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--neutral-100)', minWidth: 1040 }}>
+              <div key={b.key} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--neutral-100)', minWidth: 1080 }}>
                 <div
                   onClick={() => setExpandedId(expanded ? null : b.key)}
                   className="hover-row"
@@ -417,17 +431,17 @@ export default function BookingsPage() {
                   <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{eventWhen(b)}</div>
                   <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(b.amount)}</div>
                   <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{methodLabel(b.method)}</div>
-                  <div><Badge status={tone} size="sm">{text}</Badge></div>
+                  <div><StateBadges sb={sb} /></div>
                 </div>
                 {expanded && <EventOrderDetails o={b} onDelete={confirmDelete} />}
               </div>
             )
           }
-          const [badge, label] = statusBadge(b)
+          const sb = stateBadges(b)
           const expanded = expandedId === b.key
           const canRefund = b.status === 'confirmed' || b.status === 'refund_pending'
           return (
-            <div key={b.key} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--neutral-100)', minWidth: 1040 }}>
+            <div key={b.key} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--neutral-100)', minWidth: 1080 }}>
               <div
                 onClick={() => setExpandedId(expanded ? null : b.key)}
                 className="hover-row"
@@ -450,7 +464,7 @@ export default function BookingsPage() {
                 <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>{displayInclusiveEnd(b.slot)}</div>
                 <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(b.amountNum)}</div>
                 <div style={{ fontSize: 15, color: atVenue(b) ? 'var(--warning-600)' : 'var(--text-muted)', fontWeight: atVenue(b) ? 700 : 400 }}>{methodLabel(b.method)}</div>
-                <div><Badge status={badge} size="sm">{label}</Badge></div>
+                <div><StateBadges sb={sb} /></div>
               </div>
 
               {expanded && (

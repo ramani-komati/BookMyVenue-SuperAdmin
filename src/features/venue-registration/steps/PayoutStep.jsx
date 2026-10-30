@@ -1,5 +1,36 @@
+import { Checkbox } from '@/reg-ui';
 import { sanitizeDigitsMax, sanitizeUpperAlnum } from '@/utils/validation';
 import { SectionTextField } from '../components/SectionFields';
+import { useVenueDraftContext } from '../context/VenueDraftContext';
+import { offeringKindOf } from '../offerings/model';
+
+/**
+ * The Fitness / Resort / Big Screen Surprise forms ask the owner to accept
+ * the platform commission and terms with their bank details (required for
+ * those venue types — venueValidation + the server's submit gate).
+ */
+function TermsAgreement() {
+  const { draft, setField, showErrors } = useVenueDraftContext();
+  if (!offeringKindOf(draft.details?.primaryCategory)) return null;
+  const agreed = draft.payout?.agreedToTerms === true;
+  return (
+    <div className="rv-subbox" style={{ marginTop: 4 }}>
+      <Checkbox
+        label="I agree to the platform commission and the TheBookMyVenues partner terms."
+        checked={agreed}
+        onChange={(e) => {
+          setField('payout', 'agreedToTerms', e.target.checked);
+          setField('payout', 'agreedAt', e.target.checked ? new Date().toISOString() : '');
+        }}
+      />
+      {showErrors && !agreed && (
+        <div role="alert" style={{ color: 'var(--error-700)', fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', marginTop: 8 }}>
+          Please accept the commission and terms to continue
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Step 5 · Payout / Bank — settlement account details.
@@ -76,6 +107,8 @@ export default function PayoutStep() {
           />
           <div />
         </div>
+
+        <TermsAgreement />
       </div>
     </div>
   );

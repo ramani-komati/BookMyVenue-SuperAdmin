@@ -138,6 +138,11 @@ export const adminApi = {
     { method: 'DELETE', body: reason ? { reason } : undefined },
   ),
 
+  // All venues → Edit (backend adminpanel/venue_edit.py): every vendor-
+  // submitted detail except bank details, saved to the draft AND the listing.
+  getVenueEdit: (id) => request(`/venues/${id}/edit`),
+  saveVenueEdit: (id, body) => request(`/venues/${id}/edit`, { method: 'PUT', body }),
+
   // Image upload -> a permanent public URL (Supabase, the same bucket venue
   // photos use). Used for event posters: the event write endpoints are
   // JSON-only by design, so the file goes up here and arrives there as a URL.
@@ -187,6 +192,20 @@ export const adminApi = {
   reorderFeaturedVenues: (revision, ids) =>
     request('/homepage/featured-venues/reorder', { method: 'POST', body: { revision, ids } }),
 
+  // ---------- custom sub-categories (the wizards' "Others" option) ----------
+  // Every name, any status (backend adminpanel/subcategories_admin.py).
+  // A vendor's new name is pending until approved here; one added here is
+  // approved at once. status: pending | approved | rejected.
+  listSubcategories: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== '' && v != null),
+    ).toString()
+    return request(`/subcategories${query ? `?${query}` : ''}`)
+  },
+  addSubcategory: ({ category, name }) =>
+    request('/subcategories', { method: 'POST', body: { category, name } }),
+  updateSubcategory: (id, patch) => request(`/subcategories/${id}`, { method: 'PATCH', body: patch }),
+
   // ---------- customer ratings & reviews (moderation only) ----------
   listRatings: (params = {}) => {
     const query = new URLSearchParams(
@@ -202,4 +221,40 @@ export const adminApi = {
   resolveReview: (id, resolution) => request(`/reviews/${id}/resolve`, { method: 'POST', body: resolution }),
   saveSettings: (settings) => request('/settings', { method: 'PUT', body: settings }),
   appendAudit: (entry) => request('/audit', { method: 'POST', body: entry }),
+
+  // ---------- Email campaigns (backend campaigns/admin_views.py) ----------
+  // Promotional email only — OTP and booking mail are separate and never
+  // touched. The Resend key stays on the server; this panel only ever sees
+  // counts and masked addresses. Sending is off unless the server's
+  // CAMPAIGN_DELIVERY says otherwise (listCampaigns().delivery.mode).
+  listCampaigns: () => request('/campaigns'),
+  campaignOptions: () => request('/campaigns/options'),
+  getCampaign: (id) => request(`/campaigns/${id}`),
+  createCampaign: (fields) => request('/campaigns', { method: 'POST', body: fields }),
+  // `version` = the campaign's version when loaded; 409 STALE if another
+  // admin saved since (err.detail.campaign carries theirs).
+  saveCampaign: (id, fields) => request(`/campaigns/${id}`, { method: 'PATCH', body: fields }),
+  deleteCampaign: (id) => request(`/campaigns/${id}`, { method: 'DELETE' }),
+  duplicateCampaign: (id) => request(`/campaigns/${id}/duplicate`, { method: 'POST' }),
+  // -> { count, eligibleTotal, customers, withEmail, optedIn, suppressed, label }
+  estimateAudience: (audience) => request('/campaigns/audience', { method: 'POST', body: { audience } }),
+  // Server-rendered HTML of unsaved edits — exactly what customers receive.
+  previewCampaign: (fields) => request('/campaigns/preview', { method: 'POST', body: fields }),
+  campaignImages: () => request('/campaigns/images'),
+  uploadCampaignImage: (file) => {
+    const form = new FormData()
+    form.append('image', file)
+    return request('/campaigns/images', { method: 'POST', form })
+  },
+  sendCampaignTest: (id, to) => request(`/campaigns/${id}/test`, { method: 'POST', body: { to } }),
+  // { confirm: true, confirmAll?, expectedCount, version } — refused (409)
+  // when already sent, when the audience count changed, or delivery is off.
+  sendCampaign: (id, body) => request(`/campaigns/${id}/send`, { method: 'POST', body }),
+  cancelCampaign: (id) => request(`/campaigns/${id}/cancel`, { method: 'POST' }),
+  campaignRecipients: (id, params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ''),
+    ).toString()
+    return request(`/campaigns/${id}/recipients${query ? `?${query}` : ''}`)
+  },
 }

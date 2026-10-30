@@ -10,7 +10,6 @@ import { adminApi } from '../../services/adminApi.js'
 import { placeOf, statusMeta } from '../../utils/format.js'
 import { exportFileName } from '../../utils/exports.js'
 import { localTodayISO } from '../../utils/slots.js'
-import { TELANGANA_DISTRICTS } from '../../constants/districts.js'
 
 const PAGE_SIZE = 10
 
@@ -36,14 +35,13 @@ export default function ApprovalsListPage() {
 
   const day = (a) => parseInt(a.submitted, 10) || 0
 
-  // District filter: every Telangana district (what vendors pick in the
-  // wizard), plus any district/city value present in the data that isn't in
-  // the list — so no approval is ever unfilterable. Categories come from the
-  // data itself.
-  const cityOptions = [...new Set([
-    ...TELANGANA_DISTRICTS,
-    ...approvals.flatMap((a) => [a.district, a.city]).filter(Boolean),
-  ])]
+  // District filter: every district / city present in the data. Venues come
+  // from anywhere in India (784 districts), so the list is built from what
+  // is actually waiting rather than pre-filled with one state's districts —
+  // and no approval is ever unfilterable. Categories come from the data too.
+  const cityOptions = [...new Set(
+    approvals.flatMap((a) => [a.district, a.city]).filter(Boolean),
+  )].sort((x, y) => x.localeCompare(y))
   const categoryOptions = [...new Set(approvals.map((a) => a.category).filter(Boolean))].sort()
   // A record matches when the chosen district equals its district OR (for
   // records from before the backend exposed `district`) its city field.

@@ -1,4 +1,6 @@
-import { HALL_SUBCATS, PLAYZONE_SPORTS } from '@/constants/venue';
+import { HALL_SUBCATS } from '@/constants/venue';
+import { draftCustomNames, selectedSports } from '@/constants/subcategories';
+import { OTHERS, VENUE_TYPES } from '@/constants/categories';
 
 /**
  * autoDescribe — builds a readable venue blurb from the entered fields.
@@ -8,20 +10,22 @@ export default function autoDescribe(draft) {
   const b = draft.basics || {};
   const l = draft.location || {};
   const d = draft.details || {};
-  const cat = d.primaryCategory || 'venue';
+  const cat = d.primaryCategory || '';
+  // How a sentence names the venue type ("a sports venue", not "a playzone").
+  const noun = (cat === OTHERS ? d.customCategory : VENUE_TYPES[cat]?.noun) || 'venue';
   const loc = [l.area, l.city].filter(Boolean).join(', ');
   const parts = [];
 
-  parts.push(`${b.venueName || 'This venue'} is a ${cat.toLowerCase()}${loc ? ` located in ${loc}` : ''}.`);
+  parts.push(`${b.venueName || 'This venue'} is ${/^[aeiou]/i.test(noun) ? 'an' : 'a'} ${noun.toLowerCase()}${loc ? ` located in ${loc}` : ''}.`);
   if (b.shortDescription) parts.push(b.shortDescription.trim());
   if (d.seatingCapacity) {
     parts.push(`It comfortably hosts ${d.seatingCapacity} ${cat === 'Playzone' ? 'people' : 'seated guests'}.`);
   }
   if (cat === 'Playzone') {
-    const sp = PLAYZONE_SPORTS.filter((s) => d.sports?.[s]);
+    const sp = selectedSports(d);
     if (sp.length) parts.push(`Perfect for ${sp.join(', ').toLowerCase()}.`);
   } else if (cat === 'Private Hall') {
-    const su = HALL_SUBCATS.filter((s) => d.subCategories?.[s]);
+    const su = [...HALL_SUBCATS, ...draftCustomNames(d)].filter((s) => d.subCategories?.[s]);
     if (su.length) parts.push(`Great for ${su.join(', ').toLowerCase()}.`);
   }
   const fac = [];

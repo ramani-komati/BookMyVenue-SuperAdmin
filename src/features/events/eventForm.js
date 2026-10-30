@@ -97,7 +97,9 @@ export const eventToForm = (row) => ({
   dates: (row.dates || []).length
     ? row.dates.map((d) => ({
       date: d.date,
-      capacity: String(d.capacity ?? ''),
+      // capacity null = UNLIMITED registrations (backend events/inventory.py).
+      capacity: d.capacity == null ? '' : String(d.capacity),
+      unlimited: d.capacity == null,
       isAvailable: d.isAvailable !== false,
       // Carried so validation can tell an existing past night (legitimate —
       // it already ran) from a newly typed one (a mistake).
@@ -191,6 +193,7 @@ export function validateEvent(form) {
         errors.dates = `${row.date} is in the past — pick today or later.`
         break
       }
+      if (row.unlimited) continue   // no capacity to check
       const capacity = Number(row.capacity)
       if (!Number.isFinite(capacity) || capacity < 1) {
         errors.dates = `${row.date} needs a capacity of at least 1.`
@@ -289,11 +292,13 @@ export function toPayload(form, { publish = false } = {}) {
     bookingClosesOn: form.bookingClosesOn || null,
     dates: (form.dates || [])
       .filter((d) => String(d.date || '').trim())
-      .map((d) => ({
-        date: d.date,
-        capacity: Number(d.capacity),
-        isAvailable: d.isAvailable !== false,
-      })),
+      .map((d) => (d.unlimited
+        ? { date: d.date, unlimited: true, isAvailable: d.isAvailable !== false }
+        : {
+          date: d.date,
+          capacity: Number(d.capacity),
+          isAvailable: d.isAvailable !== false,
+        })),
     ticketTypes: (form.ticketTypes || [])
       .filter((t) => String(t.label || t.key || '').trim())
       .map((t) => ({

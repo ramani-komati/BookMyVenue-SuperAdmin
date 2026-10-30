@@ -12,7 +12,14 @@ import { checkUpload } from '@/utils/imageSpecs';
 import { readImageSize } from '@/utils/imageFile';
 
 // Which upload rules (utils/imageSpecs.js) each gallery follows.
-const GALLERY_SPEC = { venuePhotos: 'venuePhoto', serviceImages: 'serviceImage' };
+const GALLERY_SPEC = {
+  venuePhotos: 'venuePhoto',
+  serviceImages: 'serviceImage',
+  // Big Screen Surprise → Media & Branding.
+  auditoriumImages: 'serviceImage',
+  screenImages: 'serviceImage',
+  theatreLogo: 'serviceImage',
+};
 
 const tempId = () => `temp_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -23,7 +30,13 @@ const MAX_SAVE_FAILURES = 3;
 
 // Per-gallery photo caps — a module-level constant so it stays referentially
 // stable across renders (used inside the addPhotos useCallback).
-const GALLERY_MAX = { venuePhotos: MAX_VENUE_PHOTOS, serviceImages: MAX_SERVICE_IMAGES };
+const GALLERY_MAX = {
+  venuePhotos: MAX_VENUE_PHOTOS,
+  serviceImages: MAX_SERVICE_IMAGES,
+  auditoriumImages: 5,
+  screenImages: 5,
+  theatreLogo: 1,
+};
 
 /**
  * useVenueDraft — owns the whole draft lifecycle:

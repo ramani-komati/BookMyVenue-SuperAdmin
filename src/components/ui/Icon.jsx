@@ -2,6 +2,9 @@
   Archive, Bell, Briefcase, Building2, CalendarCheck, CheckCircle, ChevronsLeft, Clock,
   FileText, Image, Inbox, IndianRupee, LayoutDashboard, Menu, Plus, PlusCircle, Search, Settings, ShieldCheck, Star,
   Ticket, TrendingDown, TrendingUp, TriangleAlert, User, UserPlus, Users, Wallet, WifiOff, XCircle,
+  ChevronLeft, Lock, MapPin, Pencil, Sparkles,
+  Mail, Send,
+  Tag,
 } from 'lucide-react'
 
 const ICONS = {
@@ -35,6 +38,17 @@ const ICONS = {
   'search': Search,
   'shield-check': ShieldCheck,
   'alert-triangle': TriangleAlert,
+  // All venues → Edit
+  'chevron-left': ChevronLeft,
+  'lock': Lock,
+  'map-pin': MapPin,
+  'pencil': Pencil,
+  'sparkles': Sparkles,
+  // Email campaigns
+  'mail': Mail,
+  'send': Send,
+  // Sub-categories
+  'tag': Tag,
 }
 
 export default function Icon({ name, size = 20, ...rest }) {

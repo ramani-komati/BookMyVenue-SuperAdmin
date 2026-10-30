@@ -7,7 +7,7 @@
  * only the section that changed.
  */
 
-import { PLAYZONE_SPORTS } from '@/constants/venue';
+import { selectedSports } from '../../constants/subcategories.js';
 
 export const blankBasics = () => ({
   venueName: '',
@@ -17,6 +17,9 @@ export const blankBasics = () => ({
 });
 
 export const blankLocation = () => ({
+  // Anywhere in India: stateName and district use the names in
+  // utils/indiaRegions.js; city / area are free text (with suggestions).
+  country: 'India',
   houseStreet: '',
   area: '',
   district: '',
@@ -24,12 +27,33 @@ export const blankLocation = () => ({
   city: '',
   stateName: '',
   mapsLink: '',
+  // Optional address extras (Fitness / Resort / Big Screen Surprise forms).
+  unitNumber: '',
+  roadNumber: '',
+  landmark: '',
+  // Optional map pin (strings, 6 decimals) — used only when the maps link
+  // carries no exact pin; the backend reads it as detail.mapPin.
+  latitude: '',
+  longitude: '',
 });
 
 export const blankDetails = () => ({
+  // The VENUE TYPE ('Private Hall', 'Playzone', …) — see constants/categories.js.
   primaryCategory: '',
+  // The primary category it was chosen under ('celebrate', 'sports', …).
+  categoryGroup: '',
+  // Free-text category name, used only when primaryCategory === 'Others'
+  // (a vendor-registered venue the super admin edits).
+  customCategory: '',
+  // Venue Timings (utils/venueTimings.js): "HH:MM" each, or open 24 hours.
+  openTime: '',
+  closeTime: '',
+  open24Hours: false,
   subCategories: {},
   sports: {},
+  // Names added with the "Others" option (constants/subcategories.js) — also
+  // ticked in subCategories / sports. The server records these on submit.
+  customSubCategories: [],
   seatingCapacity: '',
   floatingCapacity: '',
   numScreens: '1',
@@ -65,6 +89,10 @@ export const blankPayout = () => ({
 export const blankPhotos = () => ({
   venuePhotos: [],
   serviceImages: [],
+  // Big Screen Surprise → Media & Branding (optional).
+  auditoriumImages: [],
+  screenImages: [],
+  theatreLogo: [],
 });
 
 /** A complete, empty draft split by section. */
@@ -103,6 +131,8 @@ export function computeCompletion(draft) {
     truthy(l.houseStreet),
     truthy(l.pincode),
     truthy(l.stateName),
+    truthy(l.district),
+    truthy(l.city),
     truthy(l.mapsLink),
     // Photos
     (ph.venuePhotos || []).length > 0,
@@ -111,7 +141,7 @@ export function computeCompletion(draft) {
     isPlayzone ? truthy(d.seatingCapacity) : truthy((d.screenConfig?.[0] || {}).max),
     (d.amenities || []).length > 0,
     isPlayzone
-      ? PLAYZONE_SPORTS.some((s) => d.sports?.[s])
+      ? selectedSports(d).length > 0
       : truthy((d.screenConfig?.[0] || {}).price) || (d.packages || []).length > 0,
     // Payout
     truthy(p.acctHolder),

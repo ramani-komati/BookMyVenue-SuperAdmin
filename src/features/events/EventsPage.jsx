@@ -298,7 +298,7 @@ export default function EventsPage() {
                   {' · '}from ₹{inr(e.fromPriceNum)}
                 </div>
                 <div style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {e.ticketsSold} / {e.capacity} tickets sold · {e.ordersNum} order{e.ordersNum === 1 ? '' : 's'} · ₹{inr(e.revenueNum)}
+                  {e.unlimited || e.capacity == null ? `${e.ticketsSold} tickets sold (unlimited)` : `${e.ticketsSold} / ${e.capacity} tickets sold`} · {e.ordersNum} order{e.ordersNum === 1 ? '' : 's'} · ₹{inr(e.revenueNum)}
                 </div>
                 {e.status === 'rejected' && e.reviewNotes && (
                   <div style={{ fontSize: 13.5, color: 'var(--status-rejected-fg)', fontWeight: 600, marginTop: 4 }}>

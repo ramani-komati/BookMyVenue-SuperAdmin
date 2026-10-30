@@ -8,6 +8,7 @@
 
 import { bookingRef, displayRef, fmt } from '../../utils/format.js'
 import { orderBadge } from '../events/orderStatus.js'
+import { bookingStates } from '../../utils/bookingStatus.js'
 
 export const KIND_LABEL = { venue: 'Venue booking', event: 'Event ticket' }
 
@@ -196,6 +197,25 @@ export function statusBadge(row) {
   if (row?.kind === 'event') return orderBadge(row)
   if (row?.statusKey === 'expired') return ['neutral', 'Abandoned checkout']
   return VENUE_BADGE[row?.status] || ['neutral', row?.status ? String(row.status) : 'Unknown']
+}
+
+// Badge tone per state tone (utils/bookingStatus *_TONE → components/ui/Badge).
+const BADGE_TONE = { success: 'success', neutral: 'neutral', danger: 'error', warning: 'warning', info: 'info' }
+
+// Booking status and payment status as TWO badges — the server's answers
+// (backend bookings/status_view.py: bookingState / paymentState), derived
+// from the raw lifecycle only when an older server sends neither. The
+// combined one-line statusBadge above stays for compact contexts.
+export function stateBadges(row) {
+  const s = bookingStates(row)
+  return {
+    // An unpaid row says which kind of unpaid it is: a live 5-minute slot
+    // hold, a payment in progress, or a hold that expired.
+    booking: s.holdLabel
+      ? [s.hold === 'expired' ? 'neutral' : 'warning', s.holdLabel]
+      : [BADGE_TONE[s.bookingTone] || 'neutral', s.bookingLabel],
+    payment: [BADGE_TONE[s.paymentTone] || 'neutral', `Payment: ${s.paymentLabel}`],
+  }
 }
 
 // The confirmation shown before deleting one booking. The server enforces

@@ -3,7 +3,9 @@ import { STEPS } from '@/constants/venue';
 import useVenueDraft from '../useVenueDraft';
 import { canReach, fieldErrors, missingFor, stepValid } from '../validation/venueValidation';
 
-const VenueDraftContext = createContext(null);
+// Exported so the super admin's venue editor (features/venues/VenueEditPage)
+// can feed the SAME step components from its own, non-autosaving state.
+export const VenueDraftContext = createContext(null);
 
 /**
  * VenueDraftProvider — combines the draft lifecycle (useVenueDraft) with wizard

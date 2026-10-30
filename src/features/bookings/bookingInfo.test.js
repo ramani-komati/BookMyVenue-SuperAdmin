@@ -85,7 +85,9 @@ test('the bookings table gains no invoice / timestamp columns', () => {
   const header = page.match(/<div>Booking<\/div>.*<div>Status<\/div>/)
   assert.ok(header, 'table header not found')
   assert.doesNotMatch(header[0], /Invoice|Paid|Created/)
-  assert.match(page, /const GRID = \{ display: 'grid', gridTemplateColumns: '120px 1\.5fr 1\.1fr 1\.3fr 110px 95px 150px'/)
+  // Still the same seven columns; Status widened 150px → 190px to fit its
+  // second badge (booking status + payment status), no column added.
+  assert.match(page, /const GRID = \{ display: 'grid', gridTemplateColumns: '120px 1\.5fr 1\.1fr 1\.3fr 110px 95px 190px'/)
   // Booking Info renders only inside expanded panels.
   const uses = page.match(/<BookingRecord row=\{[bo]\}[^/]*\/>/g) || []
   assert.equal(uses.length, 3)

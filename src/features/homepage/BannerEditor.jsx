@@ -27,6 +27,11 @@ const toForm = (b, placement) => ({
   imageHeight: b?.imageHeight || 0,
   imageMobileWidth: b?.imageMobileWidth || 0,
   imageMobileHeight: b?.imageMobileHeight || 0,
+  // Which part of the art stays in view when words are drawn over it and a
+  // frame must crop it (backend IMAGE_POSITIONS). Image-only banners always
+  // show the whole artwork.
+  imagePosition: b?.imagePosition || 'center',
+  imageMobilePosition: b?.imageMobilePosition || b?.imagePosition || 'center',
   // New banners are image-led: the art carries the message, words optional.
   showText: b ? b.showText !== false : false,
   showCode: b ? b.showCode !== false : true,
@@ -40,6 +45,10 @@ const toForm = (b, placement) => ({
 })
 
 const DISCOUNT = ['percent', 'flat']
+
+const FOCUS_OPTIONS = [
+  ['center', 'Centre'], ['left', 'Left side'], ['right', 'Right side'], ['top', 'Top'], ['bottom', 'Bottom'],
+]
 
 const toPayload = (form) => {
   const discount = DISCOUNT.includes(form.type)
@@ -247,6 +256,20 @@ export default function BannerEditor({ spec, categories, banner, placement, othe
               <div style={sectionTitle}>Banner image</div>
               <ImageSlot spec={spec} slot="desktop" form={form} set={set} busy={busyImage} setBusy={setBusyImage} />
               {form.image && <ImageSlot spec={spec} slot="mobile" form={form} set={set} busy={busyImage} setBusy={setBusyImage} />}
+              {form.image && (
+                <div style={grid}>
+                  <Field label="Keep in view — desktop & tablet" hint="Only used when the title is shown over the image. Image-only banners always show the whole artwork.">
+                    <select className="bmva" style={{ ...inputStyle, cursor: 'pointer' }} value={form.imagePosition} onChange={(e) => set({ imagePosition: e.target.value })}>
+                      {FOCUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Keep in view — phones" hint={form.imageMobile ? 'Applies to the phone image.' : 'Applies to the desktop image on phones (no phone image).'}>
+                    <select className="bmva" style={{ ...inputStyle, cursor: 'pointer' }} value={form.imageMobilePosition} onChange={(e) => set({ imageMobilePosition: e.target.value })}>
+                      {FOCUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </Field>
+                </div>
+              )}
               <Field label="Image description (for screen readers)" hint="Say what the banner says — e.g. “Diwali offer: 20% off private theatres”. Defaults to the title.">
                 <input className="bmva" style={inputStyle} value={form.imageAlt} maxLength={200} onChange={(e) => set({ imageAlt: e.target.value })} />
               </Field>
