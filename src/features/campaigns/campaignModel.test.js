@@ -70,3 +70,19 @@ test('helpers', () => {
   assert.equal(isActive('sent'), false)
   assert.deepEqual(statusBadge('nope'), ['neutral', 'nope'])
 })
+
+test('interest audiences keep their choices and need at least one', async () => {
+  const { audienceProblem, emptyAudienceReason } = await import('./campaignModel.js')
+  assert.deepEqual(cleanAudience({ segment: 'interest_city', cities: ['Warangal', ''], state: 'x' }),
+    { segment: 'interest_city', cities: ['Warangal'] })
+  assert.deepEqual(cleanAudience({ segment: 'interest_category', categories: ['Resort'] }),
+    { segment: 'interest_category', categories: ['Resort'] })
+  assert.deepEqual(cleanAudience({ segment: 'active', days: '30' }), { segment: 'active', days: 30 })
+  assert.equal(audienceProblem({ segment: 'interest_city', cities: [] }), 'Choose at least one city.')
+  assert.equal(audienceProblem({ segment: 'interest_category' }), 'Choose at least one category.')
+  assert.equal(audienceProblem({ segment: 'interest_city', cities: ['Warangal'] }), '')
+  assert.equal(emptyAudienceReason({ count: 3 }), '')
+  assert.match(emptyAudienceReason({ count: 0, customers: 5, withEmail: 5, optedIn: 0 }), /opted in/)
+  assert.match(emptyAudienceReason({ count: 0, customers: 5, withEmail: 5, optedIn: 2, eligibleTotal: 2 }), /none of them match/)
+  assert.match(emptyAudienceReason({ count: 0, customers: 0 }), /no customer accounts/)
+})

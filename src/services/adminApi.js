@@ -100,6 +100,8 @@ export const adminApi = {
   // ---------- writes (called alongside optimistic local updates) ----------
   updateApproval: (id, patch) => request(`/approvals/${id}`, { method: 'PATCH', body: patch }),
   updateVenue: (id, patch) => request(`/venues/${id}`, { method: 'PATCH', body: patch }),
+  // Records that look like test data — read-only list (adminpanel/data_review.py).
+  dataReview: () => request('/data-review'),
   updateVendor: (id, patch) => request(`/vendors/${id}`, { method: 'PATCH', body: patch }),
   updateUser: (id, patch) => request(`/users/${id}`, { method: 'PATCH', body: patch }),
   updateBooking: (id, patch) => request(`/bookings/${id}`, { method: 'PATCH', body: patch }),
@@ -224,9 +226,10 @@ export const adminApi = {
 
   // ---------- Email campaigns (backend campaigns/admin_views.py) ----------
   // Promotional email only — OTP and booking mail are separate and never
-  // touched. The Resend key stays on the server; this panel only ever sees
-  // counts and masked addresses. Sending is off unless the server's
-  // CAMPAIGN_DELIVERY says otherwise (listCampaigns().delivery.mode).
+  // touched. The Resend key stays on the server; delivery reports show masked
+  // addresses; the audience check lists eligible customers in full (admin
+  // only). Sending is off unless the server's CAMPAIGN_DELIVERY says
+  // otherwise (listCampaigns().delivery.mode).
   listCampaigns: () => request('/campaigns'),
   campaignOptions: () => request('/campaigns/options'),
   getCampaign: (id) => request(`/campaigns/${id}`),
@@ -238,6 +241,12 @@ export const adminApi = {
   duplicateCampaign: (id) => request(`/campaigns/${id}/duplicate`, { method: 'POST' }),
   // -> { count, eligibleTotal, customers, withEmail, optedIn, suppressed, label }
   estimateAudience: (audience) => request('/campaigns/audience', { method: 'POST', body: { audience } }),
+  // The customers that audience reaches — the SAME list a send freezes:
+  // -> { total, matched, page, pageSize, recipients: [{ id, name, email,
+  //      city, state, interests, hasInterests, reason, … }] }. Admin-only;
+  // nothing is sent.
+  audienceRecipients: (audience, { page = 1, search = '' } = {}) =>
+    request('/campaigns/audience/recipients', { method: 'POST', body: { audience, page, search } }),
   // Server-rendered HTML of unsaved edits — exactly what customers receive.
   previewCampaign: (fields) => request('/campaigns/preview', { method: 'POST', body: fields }),
   campaignImages: () => request('/campaigns/images'),

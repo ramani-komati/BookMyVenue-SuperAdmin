@@ -10,6 +10,7 @@
  */
 
 import { draftGroup } from '../../../constants/categories.js';
+import { exactPinCoords } from '../../../utils/maps.js';
 import { GSTIN_RE, offeringErrors, offeringKindOf, offeringMissing } from '../offerings/model.js';
 import { timingsErrors } from '../../../utils/venueTimings.js';
 import { selectedSports } from '../../../constants/subcategories.js';
@@ -47,7 +48,7 @@ export function basicsErrors(b = {}) {
 const INDIA_LAT = [6, 38];
 const INDIA_LNG = [68, 98];
 
-/** The optional map pin: both halves or neither, inside India. */
+/** The vendor-confirmed map pin as typed: both halves or neither, inside India. */
 function mapPinErrors(l) {
   const lat = String(l.latitude ?? '').trim();
   const lng = String(l.longitude ?? '').trim();
@@ -60,6 +61,24 @@ function mapPinErrors(l) {
     return { latitude: 'This point is outside India — check the latitude and longitude' };
   }
   return {};
+}
+
+/** The copy shown when a venue would be published without a usable pin. */
+export const MAP_LOCATION_REQUIRED =
+  'Add the exact map location: tap “Use my current location” at the venue, enter latitude and longitude, or paste the full Google Maps link from your browser (short share links have no pin)';
+
+/**
+ * Does this Location section give the venue a real pin? Either the maps link
+ * carries one, or the vendor confirmed latitude + longitude. The backend
+ * refuses a submission without one (code MAP_LOCATION_REQUIRED) — venues
+ * without a pin vanish from customers' "near me" searches.
+ */
+export function hasMapLocation(l = {}) {
+  if (exactPinCoords(l.mapsLink || '')) return true;
+  const lat = Number(String(l.latitude ?? '').trim());
+  const lng = Number(String(l.longitude ?? '').trim());
+  return String(l.latitude ?? '').trim() !== '' && String(l.longitude ?? '').trim() !== ''
+    && Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
 }
 
 export function locationErrors(l = {}) {
@@ -79,6 +98,10 @@ export function locationErrors(l = {}) {
     city: !truthy(l.city) ? 'City / town is required' : null,
     mapsLink: validateMapsLink(l.mapsLink, { required: true }),
     ...mapPinErrors(l),
+    ...(truthy(l.mapsLink) && !validateMapsLink(l.mapsLink, { required: true })
+      && !hasMapLocation(l) && !mapPinErrors(l).latitude && !mapPinErrors(l).longitude
+      ? { latitude: MAP_LOCATION_REQUIRED }
+      : {}),
   });
 }
 
@@ -237,6 +260,7 @@ export function missingFor(stepIndex, draft) {
     if (!truthy(l.district)) m.push('District');
     if (!truthy(l.city)) m.push('City / Town');
     if (!truthy(l.mapsLink)) m.push('Google Maps link');
+    else if (!hasMapLocation(l)) m.push('Exact map location (pin)');
   } else if (stepIndex === 2) {
     if ((draft.photos?.venuePhotos || []).length === 0) m.push('At least one venue photo');
   } else if (stepIndex === 3) {

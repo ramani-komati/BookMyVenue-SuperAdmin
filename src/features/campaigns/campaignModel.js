@@ -28,7 +28,13 @@ export const SEGMENT_HELP = {
   lapsed: 'Customers who booked before, but not within the last N days.',
   category: 'Customers who booked a venue of this category.',
   event_buyers: 'Customers who bought tickets to an event.',
+  active: 'Customers with any confirmed venue booking or paid event ticket.',
+  interest_category: 'Customers whose bookings or saved favourites include these categories.',
+  interest_city: 'Customers who booked, saved a venue or bought event tickets in these cities.',
 }
+
+// Segments whose "within N days" box applies.
+export const DAY_SEGMENTS = ['booked', 'lapsed', 'active']
 
 export function blankForm() {
   return {
@@ -57,7 +63,9 @@ export function cleanAudience(a = {}) {
     if (a.city) out.city = a.city
   }
   if (segment === 'category') out.category = a.category || ''
-  if ((segment === 'booked' || segment === 'lapsed') && a.days !== '' && a.days != null) {
+  if (segment === 'interest_category') out.categories = (a.categories || []).filter(Boolean)
+  if (segment === 'interest_city') out.cities = (a.cities || []).filter(Boolean)
+  if (DAY_SEGMENTS.includes(segment) && a.days !== '' && a.days != null) {
     out.days = Number(a.days)
   }
   return out
@@ -66,7 +74,9 @@ export function cleanAudience(a = {}) {
 export function audienceProblem(a = {}) {
   if (a.segment === 'location' && !a.state) return 'Choose a state.'
   if (a.segment === 'category' && !a.category) return 'Choose a venue category.'
-  if ((a.segment === 'booked' || a.segment === 'lapsed') && a.days !== '' && a.days != null) {
+  if (a.segment === 'interest_category' && !(a.categories || []).filter(Boolean).length) return 'Choose at least one category.'
+  if (a.segment === 'interest_city' && !(a.cities || []).filter(Boolean).length) return 'Choose at least one city.'
+  if (DAY_SEGMENTS.includes(a.segment) && a.days !== '' && a.days != null) {
     const d = Number(a.days)
     if (!Number.isInteger(d) || d < 1 || d > 3650) return 'Days must be a whole number from 1 to 3650.'
   }
@@ -133,3 +143,16 @@ export const moveImage = (list, index, delta) => {
 // Typing this is required before sending to ALL eligible customers.
 export const SEND_ALL_PHRASE = 'SEND TO ALL'
 export const needsAllConfirm = (audience) => (audience?.segment || 'all') === 'all'
+
+/**
+ * Why an audience reaches nobody — from the server's estimate breakdown, in
+ * the order an admin can act on. '' when the audience is not empty.
+ */
+export function emptyAudienceReason(est = {}) {
+  if (!est || Number(est.count) > 0) return ''
+  if (!Number(est.customers)) return 'There are no customer accounts yet.'
+  if (!Number(est.withEmail)) return 'No customer has added an email address to their account yet.'
+  if (!Number(est.optedIn)) return 'No customer has opted in to promotional emails yet. Customers turn this on under My account → Email preferences; nobody is ever added without their consent.'
+  if (!Number(est.eligibleTotal)) return 'Every opted-in address has bounced, been reported as spam, or is invalid.'
+  return 'Opted-in customers exist, but none of them match this audience. Try a wider audience.'
+}

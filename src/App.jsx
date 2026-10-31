@@ -27,6 +27,7 @@ const HomepagePage = lazy(() => import('./features/homepage/HomepagePage.jsx'))
 // Email campaigns: editor, preview and reports, loaded on first visit.
 const CampaignsPage = lazy(() => import('./features/campaigns/CampaignsPage.jsx'))
 import AuditPage from './features/audit/AuditPage.jsx'
+import DataReviewPage from './features/data-review/DataReviewPage.jsx'
 
 export default function App() {
   return (
@@ -75,6 +76,8 @@ export default function App() {
             />
           ))}
           <Route path="/audit" element={<AuditPage />} />
+          {/* Records that look like test data — review only, admin confirms each. */}
+          <Route path="/data-review" element={<DataReviewPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

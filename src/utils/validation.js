@@ -9,6 +9,8 @@
  * Keep messages short and user-friendly.
  */
 
+import { normalizePhone } from './phone.js';
+
 const isBlank = (v) => v == null || String(v).trim() === '';
 
 // ---------------------------------------------------------------------------
@@ -67,8 +69,8 @@ export const validateEmail = (v, { required = false } = {}) => {
 
 export const validatePhone = (v, { required = true, label = 'Phone number' } = {}) => {
   if (isBlank(v)) return required ? `${label} is required` : null;
-  const digits = sanitizeDigits(v);
-  return /^\d{10}$/.test(digits) ? null : `${label} must be exactly 10 digits`;
+  // Letters are refused, never stripped ("12345abc12345" is not a phone).
+  return normalizePhone(v) ? null : `${label} must be a valid 10-digit number`;
 };
 
 export const validatePincode = (v, { required = true } = {}) => {

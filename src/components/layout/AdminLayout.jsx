@@ -30,6 +30,7 @@ const NAV_ITEMS = [
   { key: 'campaigns', path: '/campaigns', label: 'Email Campaigns', icon: 'mail' },
   { key: 'settings', path: '/settings', label: 'Platform Settings', icon: 'settings' },
   { key: 'audit', path: '/audit', label: 'Audit Log', icon: 'file-text' },
+  { key: 'data-review', path: '/data-review', label: 'Data review', icon: 'alert-triangle' },
 ]
 
 const TITLES = {
@@ -39,6 +40,7 @@ const TITLES = {
   '/settings': 'Platform settings', '/audit': 'Audit log', '/homepage': 'Homepage content',
   '/campaigns': 'Email campaigns',
   '/subcategories': 'Sub-categories',
+  '/data-review': 'Data review (test records)',
 }
 
 function LoadingSkeleton() {

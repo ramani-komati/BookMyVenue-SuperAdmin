@@ -10,9 +10,31 @@
  * the imprecision is fixed at the source, not discovered by customers.
  */
 
-const COORD_PAIR = /^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
+const COORD_PAIR = /^\s*(?:loc:\s*)?(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/i;
+// One hemisphere-suffixed degrees-minutes-seconds coordinate: 17°58'08.0"N
+const DMS = /(\d{1,3})\s*°\s*(\d{1,2})\s*['′]\s*(\d{1,2}(?:\.\d+)?)\s*(?:"|″|'')?\s*([NSEW])/gi;
 
-const SHORT_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl', 'g.co']);
+const validPair = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90
+  && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
+
+/** "lat,lng" from a decimal or DMS pair written as text, or null. */
+function pointText(text) {
+  const m = String(text || '').match(COORD_PAIR);
+  if (m) return validPair(Number(m[1]), Number(m[2])) ? `${m[1]},${m[2]}` : null;
+  const found = [...String(text || '').matchAll(DMS)];
+  if (found.length !== 2) return null;
+  const out = {};
+  for (const [, deg, min, sec, hemi] of found) {
+    if (Number(min) >= 60 || Number(sec) >= 60) return null;
+    const v = Number(deg) + Number(min) / 60 + Number(sec) / 3600;
+    const h = hemi.toUpperCase();
+    out[h === 'N' || h === 'S' ? 'lat' : 'lng'] = h === 'S' || h === 'W' ? -v : v;
+  }
+  if (out.lat == null || out.lng == null || !validPair(out.lat, out.lng)) return null;
+  return `${Math.round(out.lat * 1e7) / 1e7},${Math.round(out.lng * 1e7) / 1e7}`;
+}
+
+const SHORT_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl', 'g.co', 'g.page']);
 
 /**
  * Is this one of Google's shortened share links? They carry no location data
@@ -48,10 +70,38 @@ export function exactPinCoords(link) {
       const m = v && v.match(COORD_PAIR);
       if (m) return `${m[1]},${m[2]}`;
     }
+    // A /maps/place|search|dir/ path segment that IS the point (decimal or
+    // degrees-minutes-seconds); the @lat,lng viewport is never a pin.
+    const parts = u.pathname.split('/').map((p) => {
+      try {
+        return decodeURIComponent(p.replace(/\+/g, ' '));
+      } catch {
+        return p;
+      }
+    });
+    const i = parts.findIndex((p) => p === 'place' || p === 'search' || p === 'dir');
+    if (i >= 0) {
+      const tail = parts.slice(i + 1).filter((p) => p && !p.startsWith('@') && !p.startsWith('data='));
+      if (tail.length) return pointText(parts[i] === 'dir' ? tail[tail.length - 1] : tail[0]);
+    }
   } catch {
     /* not a parseable URL */
   }
   return null;
+}
+
+/** "Open in Google Maps" for a venue: its exact pin when known, else the
+ *  vendor's own link, else a name + address search. Never an invented point. */
+export function openInMapsUrl({ coordinates, mapsLink, name, address } = {}) {
+  const lat = Number(coordinates?.lat);
+  const lng = Number(coordinates?.lng);
+  if (coordinates && validPair(lat, lng)) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  }
+  const link = String(mapsLink || '').trim();
+  if (/^https:\/\//i.test(link)) return link;
+  const q = [name, address].filter(Boolean).join(', ');
+  return q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : '';
 }
 
 /**
