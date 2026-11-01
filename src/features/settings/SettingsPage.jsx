@@ -10,7 +10,9 @@ const inputStyle = {
   padding: '0 14px', background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 11,
 }
 
-const smallInputStyle = { ...inputStyle, minHeight: 42, flex: '0 1 260px' }
+// minWidth 0: an input's natural width is ~20 characters, so without it the
+// field could not shrink and pushed "Add" off a 320px phone screen.
+const smallInputStyle = { ...inputStyle, minHeight: 42, flex: '0 1 260px', minWidth: 0 }
 
 const sectionTitle = { fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-heading)' }
 

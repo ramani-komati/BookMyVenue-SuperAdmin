@@ -59,7 +59,7 @@ function LoadingSkeleton() {
 }
 
 export default function AdminLayout() {
-  const { authed, setAuthed, admin, pendingApprovals, pendingEvents, approvals, venues, dataStatus, retryLoad } = useAdmin()
+  const { authed, setAuthed, admin, pendingApprovals, pendingEvents, approvals, venues, vendors, dataStatus, retryLoad } = useAdmin()
   const { isMobile, isNarrow: viewportNarrow } = useViewport()
   const location = useLocation()
   const navigate = useNavigate()
@@ -130,6 +130,11 @@ export default function AdminLayout() {
     const sel = venues.find((v) => String(v.id) === decodeURIComponent(editMatch[1]))
     pageTitle = sel ? 'Edit: ' + sel.name : 'Edit venue'
   }
+  const vendorEditMatch = location.pathname.match(/^\/vendors\/([^/]+)\/edit$/)
+  if (vendorEditMatch) {
+    const sel = vendors.find((v) => String(v.id) === decodeURIComponent(vendorEditMatch[1]))
+    pageTitle = sel ? 'Edit vendor: ' + sel.name : 'Edit vendor'
+  }
 
   const signOut = () => {
     setMenuOpen(false)
@@ -150,11 +155,12 @@ export default function AdminLayout() {
         onClick={() => { setNavOpen(false); navigate(it.path) }}
         title={it.label}
         className={isActive ? undefined : 'sidebar-item'}
+        aria-current={isActive ? 'page' : undefined}
         style={{
           display: 'flex', alignItems: 'center', gap: 12, height: 44, padding: '0 12px 0 9px',
           border: 'none', borderLeft: `3px solid ${isActive ? 'var(--brand-accent)' : 'transparent'}`,
           background: isActive ? 'rgba(255,255,255,.1)' : 'transparent',
-          color: isActive ? '#fff' : 'var(--neutral-300)',
+          color: isActive ? '#fff' : 'var(--sidebar-fg-muted)',
           fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, cursor: 'pointer',
           width: '100%', textAlign: 'left', borderRadius: '0 10px 10px 0', flex: '0 0 auto',
         }}
@@ -180,7 +186,7 @@ export default function AdminLayout() {
       {!compact && (
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 15.5, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{admin.name}</div>
-          <div style={{ fontSize: 15.5, color: 'var(--navy-300)' }}>{admin.role}</div>
+          <div style={{ fontSize: 15.5, color: 'var(--sidebar-fg-muted)' }}>{admin.role}</div>
         </div>
       )}
     </div>
@@ -190,7 +196,7 @@ export default function AdminLayout() {
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface-page)', fontFamily: 'var(--font-body)', color: 'var(--text-body)' }}>
       {/* Sidebar (desktop / tablet) */}
       {!isMobile && (
-        <aside style={{ width: isNarrow ? 68 : 250, flex: '0 0 auto', background: 'var(--navy-800)', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '20px 12px 16px', gap: 2, transition: 'width .2s ease' }}>
+        <aside className="admin-sidebar" style={{ width: isNarrow ? 68 : 250, flex: '0 0 auto', background: 'var(--sidebar-bg)', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '20px 12px 16px', gap: 2, transition: 'width .2s ease' }}>
           <button
             onClick={() => navigate('/')}
             title="TheBookMyVenues home"
@@ -211,7 +217,7 @@ export default function AdminLayout() {
             onClick={() => setCollapsed((c) => !c)}
             title="Collapse"
             className="sidebar-item"
-            style={{ display: 'flex', alignItems: 'center', gap: 12, height: 44, padding: '0 12px', border: 'none', background: 'none', color: 'var(--neutral-300)', fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, cursor: 'pointer', borderRadius: 10 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 12, height: 44, padding: '0 12px', border: 'none', background: 'none', color: 'var(--sidebar-fg-muted)', fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, cursor: 'pointer', borderRadius: 10 }}
           >
             <span style={{ display: 'flex', transform: isNarrow ? 'rotate(180deg)' : 'none', transition: 'transform .2s ease' }}>
               <Icon name="chevrons-left" size={20} />
@@ -227,7 +233,7 @@ export default function AdminLayout() {
       {isMobile && navOpen && (
         <>
           <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(6,21,44,.5)', zIndex: 50 }} />
-          <aside style={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: 264, maxWidth: '85vw', background: 'var(--navy-800)', zIndex: 51, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '18px 12px 16px', gap: 2, boxShadow: 'var(--shadow-xl)' }}>
+          <aside className="admin-sidebar" style={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: 264, maxWidth: '85vw', background: 'var(--sidebar-bg)', zIndex: 51, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '18px 12px 16px', gap: 2, boxShadow: 'var(--shadow-xl)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 16px' }}>
               <img src="/assets/logo-sidenav.svg" alt="TheBookMyVenues" style={{ height: 48, width: 'auto', objectFit: 'contain' }} />
               <button onClick={() => setNavOpen(false)} aria-label="Close menu" style={{ width: 38, height: 38, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,.1)', color: '#fff', cursor: 'pointer', fontSize: 17, fontWeight: 800, flex: '0 0 auto' }}>×</button>

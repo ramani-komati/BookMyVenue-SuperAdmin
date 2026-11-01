@@ -10,7 +10,12 @@ import BasicInfoStep from '../venue-registration/steps/BasicInfoStep.jsx'
 import LocationStep from '../venue-registration/steps/LocationStep.jsx'
 import PhotosStep from '../venue-registration/steps/PhotosStep.jsx'
 import DetailsStep from '../venue-registration/steps/DetailsStep.jsx'
-import { EDIT_TABS, editErrors, editRequest, firstInvalidTab, sectionsForEdit } from './venueEdit.js'
+import {
+  EDIT_TABS, editErrors, editRequest, firstInvalidTab, majorChanges, makeCover, movePhoto as movedPhotos,
+  pinChanged, pinKey, removedPhotos, sectionsForEdit,
+} from './venueEdit.js'
+import AdminLocationPanel from './AdminLocationPanel.jsx'
+import { ChangeHistory, RemovedPhotosPanel } from './VenueEditHistory.jsx'
 import '@/reg-ui/reg-components.css'
 import '../venue-registration/venue-registration.css'
 
@@ -38,7 +43,7 @@ const STATUS_LABEL = {
 export default function VenueEditPage() {
   const { venueId } = useParams()
   const navigate = useNavigate()
-  const { setVenues, showToast } = useAdmin()
+  const { setVenues, showToast, openModal } = useAdmin()
 
   const [state, setState] = useState('loading')          // loading | ready | error
   const [loadError, setLoadError] = useState('')
@@ -50,6 +55,8 @@ export default function VenueEditPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)       // { message, code }
   const [photoError, setPhotoError] = useState('')
+  // The pin (pinKey) the admin confirmed on the map — see AdminLocationPanel.
+  const [confirmedPin, setConfirmedPin] = useState(null)
 
   const load = useCallback(async () => {
     setState('loading')
@@ -62,6 +69,7 @@ export default function VenueEditPage() {
       savedJson.current = JSON.stringify(next)
       setSaveError(null)
       setShowErrors(false)
+      setConfirmedPin(null)
       setState('ready')
     } catch (err) {
       setLoadError(err.message || 'Could not load this venue.')
@@ -119,8 +127,50 @@ export default function VenueEditPage() {
       }
     }
   }, [])
-  const removePhoto = useCallback((gallery, id) => {
+  const dropPhoto = useCallback((gallery, id) => {
     setSections((prev) => ({ ...prev, photos: { ...prev.photos, [gallery]: prev.photos[gallery].filter((p) => p.id !== id) } }))
+  }, [])
+  // Removing asks first. Nothing is deleted from storage: the photo leaves
+  // the venue on Save, and the change history keeps it for restoring.
+  const removePhoto = useCallback((gallery, id) => {
+    const photo = sections?.photos?.[gallery]?.find((p) => p.id === id)
+    if (!photo || photo.uploading) return dropPhoto(gallery, id)
+    const isCover = gallery === 'venuePhotos' && sections.photos.venuePhotos[0]?.id === id
+    openModal({
+      title: 'Remove this photo?',
+      body: (
+        <span style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <img src={photo.url} alt="" style={{ width: 96, height: 64, objectFit: 'cover', borderRadius: 8, flex: '0 0 auto' }} />
+          <span>
+            {isCover ? 'This is the cover photo — the next photo becomes the cover. ' : ''}
+            It comes off the venue when you save. The file itself isn’t deleted, and the change history keeps it so it can be restored.
+          </span>
+        </span>
+      ),
+      confirmLabel: 'Remove photo',
+      danger: true,
+      onConfirm: () => dropPhoto(gallery, id),
+    })
+  }, [sections, openModal, dropPhoto])
+  const movePhoto = useCallback((gallery, id, delta) => {
+    setSections((prev) => ({ ...prev, photos: { ...prev.photos, [gallery]: movedPhotos(prev.photos[gallery], id, delta) } }))
+  }, [])
+  const makeCoverPhoto = useCallback((gallery, id) => {
+    setSections((prev) => ({ ...prev, photos: { ...prev.photos, [gallery]: makeCover(prev.photos[gallery], id) } }))
+  }, [])
+  const restorePhoto = useCallback(({ gallery, url }) => {
+    const target = gallery in GALLERY_MAX ? gallery : 'venuePhotos'
+    setPhotoError('')
+    setSections((prev) => {
+      const list = prev.photos[target] || []
+      if (list.some((p) => p.url === url)) return prev
+      if (list.length >= (GALLERY_MAX[target] ?? Infinity)) {
+        setPhotoError(`This gallery is full (${GALLERY_MAX[target]} photos) — remove one before restoring.`)
+        return prev
+      }
+      const id = `restored-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+      return { ...prev, photos: { ...prev.photos, [target]: [...list, { id, url }] } }
+    })
   }, [])
 
   const ctx = useMemo(() => (sections ? {
@@ -132,17 +182,23 @@ export default function VenueEditPage() {
     currentErrors: showErrors ? errors?.[tab] || {} : {},
     addPhotos,
     removePhoto,
+    movePhoto,
+    makeCoverPhoto,
     photoError,
     // Business documents ride in the bank section, which this page never
     // loads or saves (venue_edit.py refuses it) — the offering panels hide them.
     payoutEditable: false,
-  } : null), [sections, setField, patchSection, tab, showErrors, errors, addPhotos, removePhoto, photoError])
+    adminEdit: true,
+  } : null), [sections, setField, patchSection, tab, showErrors, errors, addPhotos, removePhoto, movePhoto, makeCoverPhoto, photoError])
+
+  const locationMoved = sections && payload ? pinChanged(payload.location?.coordinates, sections.location) : false
+  const locationConfirmed = locationMoved && confirmedPin === pinKey(sections.location)
 
   const uploading = sections
     ? [...sections.photos.venuePhotos, ...sections.photos.serviceImages].some((p) => p.uploading)
     : false
 
-  const save = async () => {
+  const save = () => {
     if (saving || !sections) return
     const bad = firstInvalidTab(errors)
     if (bad) {
@@ -151,15 +207,47 @@ export default function VenueEditPage() {
       setSaveError({ message: 'Fix the highlighted fields first.', code: 'INVALID' })
       return
     }
+    if (locationMoved && !locationConfirmed) {
+      setTab('location')
+      setSaveError({ message: 'This changes where the venue is on the map. Check the map preview and tick the confirmation on the Location tab.', code: 'LOCATION_UNCONFIRMED' })
+      return
+    }
+    // Changes customers notice most (name, category, map location, cover,
+    // removed photos) are spelled out before they go live.
+    const lines = majorChanges(JSON.parse(savedJson.current), sections, payload.location?.coordinates)
+    if (!lines.length) {
+      commit()
+      return
+    }
+    openModal({
+      title: 'Save these changes to the live venue?',
+      body: (
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <ul style={{ margin: 0, paddingLeft: 20 }}>
+            {lines.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+          <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+            Customers see the change right away. Bookings, payments, reviews and the venue’s owner are not affected.
+          </span>
+        </span>
+      ),
+      confirmLabel: 'Save changes',
+      onConfirm: () => { commit() },
+    })
+  }
+
+  const commit = async () => {
     setSaving(true)
     setSaveError(null)
     try {
-      const data = await adminApi.saveVenueEdit(venueId, editRequest(venueId, sections, payload.version))
+      const body = editRequest(venueId, sections, payload.version, { locationConfirmed })
+      const data = await adminApi.saveVenueEdit(venueId, body)
       const next = sectionsForEdit(data)
       setPayload(data)
       setSections(next)
       savedJson.current = JSON.stringify(next)
       setShowErrors(false)
+      setConfirmedPin(null)
       if (data?.venue?.id) setVenues((list) => list.map((v) => (v.id === data.venue.id ? { ...v, ...data.venue } : v)))
       showToast('Venue details saved')
     } catch (err) {
@@ -249,9 +337,38 @@ export default function VenueEditPage() {
           {tab === 'photos' && showErrors && errors.photos.venuePhotos && (
             <div role="alert" style={{ color: 'var(--error-700)', fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{errors.photos.venuePhotos}</div>
           )}
+          {tab === 'location' && (
+            <div style={{ marginBottom: 24 }}>
+              <AdminLocationPanel
+                key={payload.version}
+                saved={payload.location}
+                venueName={sections.basics.venueName}
+                location={sections.location}
+                onPatch={(updater) => patchSection('location', updater)}
+                confirmedKey={confirmedPin}
+                onConfirm={setConfirmedPin}
+              />
+            </div>
+          )}
+          {tab === 'photos' && (
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+              The first venue photo is the cover on venue cards and the venue page. Use the arrows or “Make cover” to change the order.
+              Each tile shows the customer card’s own crop. Nothing goes live until you save.
+            </div>
+          )}
           <Step />
+          {tab === 'photos' && (
+            <RemovedPhotosPanel
+              pending={removedPhotos(JSON.parse(savedJson.current), sections)}
+              history={payload.revisions || []}
+              current={sections.photos}
+              onRestore={restorePhoto}
+            />
+          )}
         </div>
       </VenueDraftContext.Provider>
+
+      <ChangeHistory revisions={payload.revisions || []} />
 
       {saveError && (
         <div role="alert" className="card" style={{ padding: '12px 16px', color: 'var(--error-700)', fontWeight: 700, fontSize: 14.5, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>

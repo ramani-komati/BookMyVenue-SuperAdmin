@@ -9,7 +9,10 @@ import { placeOf } from '../../utils/format.js'
 import { exportFileName } from '../../utils/exports.js'
 import { localTodayISO } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
+import Button from '../../components/ui/Button.jsx'
 import ExportButton from '../../components/ui/ExportButton.jsx'
+import SearchInput from '../../components/ui/SearchInput.jsx'
+import { searchVenues, venueSearchParams } from './venueSearch.js'
 
 // Every status a venue can be in across its whole life on the platform —
 // including `deleted` rows, which the backend keeps (soft-delete) so the
@@ -67,14 +70,19 @@ export default function AllVenuesPage() {
   const { width } = useViewport()
   const compact = width < 768
   const [statusFilter, setStatusFilter] = useState('all')
+  const [query, setQuery] = useState('')
+  // The search narrows the registry first; the status chips then count and
+  // filter within the matches, so the two always combine.
+  const matched = searchVenues(venues, query)
+  const searching = query.trim() !== ''
 
-  const counts = venues.reduce((acc, v) => {
+  const counts = matched.reduce((acc, v) => {
     const s = VENUE_META[v.status] ? v.status : 'draft'
     acc[s] = (acc[s] || 0) + 1
     return acc
   }, {})
-  const shown = statusFilter === 'all' ? venues : venues.filter((v) => (VENUE_META[v.status] ? v.status : 'draft') === statusFilter)
-  const deletedCount = counts.deleted || 0
+  const shown = statusFilter === 'all' ? matched : matched.filter((v) => (VENUE_META[v.status] ? v.status : 'draft') === statusFilter)
+  const deletedCount = venues.filter((v) => v.status === 'deleted').length
 
   const chip = (key, label, count) => {
     const on = statusFilter === key
@@ -134,21 +142,48 @@ export default function AllVenuesPage() {
             ? 'No venues yet.'
             : `${venues.length} venue${venues.length === 1 ? '' : 's'} ever listed${deletedCount ? ` · ${deletedCount} deleted` : ''}`}
         </div>
-        {venues.length > 0 && chip('all', 'All', venues.length)}
-        {STATUS_ORDER.map((s) => (counts[s] ? chip(s, VENUE_META[s][1], counts[s]) : null))}
+        {venues.length > 0 && chip('all', 'All', matched.length)}
+        {/* The selected chip stays even at 0, so it can always be switched off. */}
+        {STATUS_ORDER.map((s) => (counts[s] || statusFilter === s ? chip(s, VENUE_META[s][1], counts[s] || 0) : null))}
         <div style={{ flex: 1 }} />
-        {/* Exports the chip's venues (or every venue under "All"). */}
+        {/* Exports exactly the venues listed: the chip's status and the search. */}
         <ExportButton
-          fetchFile={() => adminApi.exportReport('venues', { scope: 'all', status: statusFilter === 'all' ? 'All' : statusFilter })}
+          fetchFile={() => adminApi.exportReport('venues', {
+            scope: 'all', status: statusFilter === 'all' ? 'All' : statusFilter, ...venueSearchParams(query),
+          })}
           filename={exportFileName('admin_venues', localTodayISO())}
           count={shown.length} noun={shown.length === 1 ? 'venue' : 'venues'} what="venues"
-          title={statusFilter === 'all' ? 'Exports every venue ever listed' : `Exports the ${VENUE_META[statusFilter]?.[1] || ''} venues shown`}
+          label={searching ? 'Export matching venues' : 'Export Excel'}
+          title={searching
+            ? 'Exports the venues matching your search and status'
+            : statusFilter === 'all' ? 'Exports every venue ever listed' : `Exports the ${VENUE_META[statusFilter]?.[1] || ''} venues shown`}
         />
       </div>
+      {venues.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <SearchInput
+            value={query} onChange={setQuery} compact={compact} label="Search all venues"
+            placeholder="Search venue, vendor, city, category or ID…"
+          />
+          {searching && (
+            <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-muted)' }}>
+              {shown.length} of {venues.length} venue{venues.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      )}
 
       {shown.length === 0 && venues.length > 0 && (
-        <div className="card" style={{ padding: '28px 20px', textAlign: 'center', fontSize: 15, fontWeight: 600, color: 'var(--text-muted)' }}>
-          No venues with this status.
+        <div className="card" role="status" style={{ padding: '28px 20px', textAlign: 'center', fontSize: 15, fontWeight: 600, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+          <span>
+            {searching
+              ? <>No venues match “{query.trim()}”{statusFilter !== 'all' ? ` with the status ${VENUE_META[statusFilter]?.[1] || statusFilter}` : ''}.</>
+              : 'No venues with this status.'}
+          </span>
+          <span style={{ display: 'flex', gap: 8 }}>
+            {searching && <Button variant="secondary" size="sm" onClick={() => setQuery('')}>Clear search</Button>}
+            {statusFilter !== 'all' && <Button variant="ghost" size="sm" onClick={() => setStatusFilter('all')}>Show every status</Button>}
+          </span>
         </div>
       )}
 

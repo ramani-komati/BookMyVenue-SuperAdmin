@@ -333,6 +333,9 @@ export default function DetailDrawer() {
           </div>
         ) : (
           <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Button variant="secondary" size="sm" block onClick={() => { closeDrawer(); navigate(`/all-venues/${encodeURIComponent(v.id)}/edit`) }}>
+              Edit venue details, location &amp; photos
+            </Button>
             <Button variant={v.status === 'paused' ? 'secondary' : 'danger'} size="sm" block onClick={togglePause}>
               {v.status === 'paused' ? 'Unpause venue' : 'Pause venue'}
             </Button>
@@ -497,13 +500,20 @@ export default function DetailDrawer() {
             <>
               <div style={{ ...sectionTitle, marginTop: 8 }}>Payout account</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', border: '1px solid var(--border-subtle)', borderRadius: 11 }}>
-                <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>{view.payout}</span>
+                <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>
+                  {view.payout || 'Bank details stay with the vendor — they are not shown or editable in this panel.'}
+                </span>
               </div>
             </>
           )}
         </div>
 
-        <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16 }}>
+        <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {view.isVendor && (
+            <Button variant="secondary" size="sm" block onClick={() => { closeDrawer(); navigate(`/vendors/${encodeURIComponent(drawer.id)}/edit`) }}>
+              Edit vendor details
+            </Button>
+          )}
           <Button variant={view.dangerVariant} size="sm" block onClick={view.dangerAction}>{view.dangerLabel}</Button>
         </div>
       </>

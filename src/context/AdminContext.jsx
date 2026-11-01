@@ -296,7 +296,7 @@ export function AdminProvider({ children }) {
     dataStatus, dataError, retryLoad: loadAll,
     approvals, updateApproval, pendingApprovals,
     venues, setVenues, updateVenue,
-    vendors, updateVendor,
+    vendors, setVendors, updateVendor,
     users, updateUser,
     bookings, updateBooking,
     eventOrders, removeEventOrder, deleteBooking,

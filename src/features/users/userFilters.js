@@ -14,6 +14,13 @@ export const USER_STATUS_OPTIONS = [
 // The fields the search box reads — the same four the server searches.
 export const userSearchFields = (u) => [u.id, u.name, u.email, u.phone]
 
+/** The customer's registered email as the table shows it — '' (a blank
+ *  cell) when they have none, never "undefined" / "null" / a placeholder. */
+export function displayEmail(user) {
+  const email = user?.email
+  return typeof email === 'string' ? email.trim() : ''
+}
+
 export function filterUsers(users, { query = '', status = 'All' } = {}) {
   return (users || []).filter((u) =>
     (status === 'All' || u.status === status) && matchesQuery(query, userSearchFields(u)))

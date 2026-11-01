@@ -190,7 +190,9 @@ const fixed = (n) => String(Math.round(Number(n) * 1e6) / 1e6);
  * typed address (geocoded), or by typing the coordinates.
  */
 function MapPinField() {
-  const { draft, patchSection } = useVenueDraftContext();
+  // adminEdit: the super admin's venue editor — they are not at the venue,
+  // so "use my location" would pin the admin's office.
+  const { draft, patchSection, adminEdit } = useVenueDraftContext();
   const l = draft.location || {};
   const linkPin = exactPinCoords(l.mapsLink || '');
   const [status, setStatus] = useState({ state: 'idle', message: '' });   // idle | busy | done | error
@@ -263,9 +265,11 @@ function MapPinField() {
         </div>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        <Button type="button" variant="secondary" size="sm" onClick={fromGps} disabled={busy}>
-          <Icon name="map-pin" size={16} /> Use my location (I’m at the venue)
-        </Button>
+        {!adminEdit && (
+          <Button type="button" variant="secondary" size="sm" onClick={fromGps} disabled={busy}>
+            <Icon name="map-pin" size={16} /> Use my location (I’m at the venue)
+          </Button>
+        )}
         <Button type="button" variant="secondary" size="sm" onClick={fromAddress} disabled={busy}>
           <Icon name="map-pin" size={16} /> Find from the address
         </Button>

@@ -13,6 +13,7 @@ import AllVenuesPage from './features/venues/AllVenuesPage.jsx'
 import VenueEditPage from './features/venues/VenueEditPage.jsx'
 import DeletionRequestsPage from './features/deletions/DeletionRequestsPage.jsx'
 import VendorsPage from './features/vendors/VendorsPage.jsx'
+import VendorEditPage from './features/vendors/VendorEditPage.jsx'
 import UsersPage from './features/users/UsersPage.jsx'
 import BookingsPage from './features/bookings/BookingsPage.jsx'
 import VerifyBookingPage from './features/checkin/VerifyBookingPage.jsx'
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/all-venues/:venueId/edit" element={<VenueEditPage />} />
           <Route path="/deletion-requests" element={<DeletionRequestsPage />} />
           <Route path="/vendors" element={<VendorsPage />} />
+          <Route path="/vendors/:vendorId/edit" element={<VendorEditPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/verify-booking" element={<VerifyBookingPage />} />

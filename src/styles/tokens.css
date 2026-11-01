@@ -26,6 +26,10 @@
   --navy-800: #06152C;
   --navy-900: #030D1E;
 
+  /* ---- Sidebar (black, with the red brand accent for the active item) ---- */
+  --sidebar-bg: #0A0A0A;
+  --sidebar-fg-muted: #C9CDD3;   /* inactive items — 12.6:1 on --sidebar-bg */
+
   /* ---- Neutrals ---- */
   --neutral-0:   #FFFFFF;
   --neutral-50:  #F7F8FA;

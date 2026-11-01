@@ -8,15 +8,22 @@
 // back as { "detail": "..." } and are surfaced with the HTTP status attached
 // so callers can branch on 401/403 (session expired → sign-in screen).
 
-// Talk to the real admin API. In DEV the base defaults to a RELATIVE
-// `/api/admin` so requests go through the Vite dev proxy (vite.config.js)
-// server-to-server — the backend's CORS allowlist covers only the production
-// domains, so a direct browser call from localhost is refused. Production
-// builds default to the absolute onrender URL. Override either with
-// VITE_ADMIN_API_BASE (no trailing slash) to point dev at a different backend.
-const API_BASE =
-  import.meta.env.VITE_ADMIN_API_BASE ||
-  (import.meta.env.DEV ? '/api/admin' : 'https://bookmyvenues-backend.onrender.com/api/admin')
+// Talk to the real admin API through a SAME-ORIGIN `/api/admin` — in dev via
+// the Vite proxy (vite.config.js), in production via the vercel.json rewrite
+// that forwards /api/* to the backend.
+//
+// Why same-origin (iPhone fix, 2026-11-01): auth is a session COOKIE. When
+// the panel called https://bookmyvenues-backend.onrender.com directly, that
+// cookie belonged to another site — a THIRD-PARTY cookie — and Safari (iOS
+// and macOS) blocks every third-party cookie by default. Sign-in "succeeded"
+// but the next request had no session (401) and the admin was sent straight
+// back to the login screen. Served from the panel's own domain the cookie is
+// first-party and every browser keeps it. Nothing about auth is loosened.
+//
+// VITE_ADMIN_API_BASE (no trailing slash) still overrides it, e.g. to point
+// dev at another backend — an absolute cross-site URL brings the Safari
+// problem back, so production should leave it unset.
+const API_BASE = import.meta.env.VITE_ADMIN_API_BASE || '/api/admin'
 
 // Wake the backend the moment the panel opens — Render's free tier sleeps
 // after idle and a cold start takes ~30s, which otherwise lands entirely on
@@ -144,6 +151,11 @@ export const adminApi = {
   // submitted detail except bank details, saved to the draft AND the listing.
   getVenueEdit: (id) => request(`/venues/${id}/edit`),
   saveVenueEdit: (id, body) => request(`/venues/${id}/edit`, { method: 'PUT', body }),
+  // Vendors → Edit details: contact name / email and business details.
+  // Never bank or payout details — the server neither returns nor accepts
+  // them (backend adminpanel/vendor_profile.py).
+  getVendorProfile: (id) => request(`/vendors/${id}/profile`),
+  saveVendorProfile: (id, body) => request(`/vendors/${id}/profile`, { method: 'PUT', body }),
 
   // Image upload -> a permanent public URL (Supabase, the same bucket venue
   // photos use). Used for event posters: the event write endpoints are

@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { filterUsers, userExportParams } from './userFilters.js'
+import { displayEmail, filterUsers, userExportParams } from './userFilters.js'
 
 // Shapes as /api/admin/bootstrap `users` returns them.
 const USERS = [
@@ -37,4 +37,17 @@ test('the export sends the same filters the page applies', () => {
 
 test('missing list is empty, never a crash', () => {
   assert.deepEqual(filterUsers(undefined, { query: 'x' }), [])
+})
+
+test('email column: the registered email, or a blank cell — never a placeholder', () => {
+  assert.equal(displayEmail(USERS[0]), 'asha@example.com')
+  assert.equal(displayEmail(USERS[1]), '')            // empty string from the API
+  assert.equal(displayEmail(USERS[2]), '')            // null
+  assert.equal(displayEmail({ id: 4 }), '')           // missing key
+  assert.equal(displayEmail({ email: undefined }), '')
+  assert.equal(displayEmail(undefined), '')
+  assert.equal(displayEmail({ email: '  ravi@x.in ' }), 'ravi@x.in')
+  for (const u of [...USERS, { id: 4 }]) {
+    assert.ok(!/undefined|null|n\/a/i.test(displayEmail(u)))
+  }
 })

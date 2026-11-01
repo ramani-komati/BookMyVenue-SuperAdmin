@@ -437,3 +437,12 @@
     flex-wrap: wrap;
   }
 }
+
+/* Photo order controls (super admin venue editor) */
+.rv-orderbtn {
+  min-height: 30px; min-width: 34px; padding: 0 8px; border-radius: 8px;
+  border: 1px solid var(--border-default); background: var(--surface-card);
+  color: var(--text-heading); font: 700 12.5px var(--font-body); cursor: pointer;
+}
+.rv-orderbtn:disabled { opacity: .4; cursor: default; }
+.rv-orderbtn:not(:disabled):hover { background: var(--surface-sunken, #f4f5f7); }

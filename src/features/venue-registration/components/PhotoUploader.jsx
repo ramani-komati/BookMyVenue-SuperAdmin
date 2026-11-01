@@ -11,6 +11,9 @@ import { IMAGE_KINDS, UPLOAD_SPECS, checkUpload, fitCaption, formatBytes, px } f
  * With `spec` (utils/imageSpecs.js UPLOAD_SPECS key) it also says what to
  * upload, and each tile is the customer card's own 3:2 frame with the same
  * fit rule (ImageFrame), with a one-line verdict — the real crop customers get.
+ *
+ * Optional `onMove(id, delta)` / `onMakeCover(id)` add order controls under
+ * each photo (the super admin's venue editor); the first photo is the cover.
  */
 export default function PhotoUploader({
   title,
@@ -22,6 +25,8 @@ export default function PhotoUploader({
   onRemove,
   countLabel,
   spec,
+  onMove,
+  onMakeCover,
 }) {
   const canAdd = photos.length < max;
   const rules = spec ? UPLOAD_SPECS[spec] : null;
@@ -50,7 +55,8 @@ export default function PhotoUploader({
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 16 }}>
         {photos.map((p, i) => (
-          <div key={p.id} className="rv-upthumb">
+          <div key={p.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="rv-upthumb">
             <ImageFrame
               kind={rules?.kind || 'listing'}
               src={p.url}
@@ -100,6 +106,20 @@ export default function PhotoUploader({
                 &times;
               </button>
             )}
+          </div>
+          {(onMove || onMakeCover) && !p.uploading && (
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              {onMove && (
+                <button type="button" className="rv-orderbtn" aria-label="Move photo earlier" title="Move earlier" disabled={i === 0} onClick={() => onMove(p.id, -1)}>&#8592;</button>
+              )}
+              {onMove && (
+                <button type="button" className="rv-orderbtn" aria-label="Move photo later" title="Move later" disabled={i === photos.length - 1} onClick={() => onMove(p.id, 1)}>&#8594;</button>
+              )}
+              {onMakeCover && i > 0 && (
+                <button type="button" className="rv-orderbtn" style={{ flex: 1 }} onClick={() => onMakeCover(p.id)}>Make cover</button>
+              )}
+            </div>
+          )}
           </div>
         ))}
 

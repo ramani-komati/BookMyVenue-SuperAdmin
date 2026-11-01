@@ -129,11 +129,16 @@ function fallbackQuery(link) {
 
 /**
  * Keyless Google Maps embed URL pinned as close to the vendor's marked spot
- * as the link allows: exact coordinates when the link carries them, else the
- * link's own query/place, else a "name, address" business search.
+ * as we know it: the venue's saved `coordinates` (the server's pin — the
+ * same point distances are measured from, incl. a location an admin
+ * corrected), else exact coordinates the link carries, else the link's own
+ * query/place, else a "name, address" business search.
  */
-export function mapEmbedSrc({ name, address, location, mapsLink }) {
+export function mapEmbedSrc({ name, address, location, mapsLink, coordinates }) {
+  const lat = Number(coordinates?.lat);
+  const lng = Number(coordinates?.lng);
   const q =
+    (coordinates && validPair(lat, lng) ? `${lat},${lng}` : '') ||
     exactPinCoords(mapsLink) ||
     fallbackQuery(mapsLink) ||
     [name, address || location].filter(Boolean).join(', ');

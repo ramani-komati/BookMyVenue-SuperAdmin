@@ -7,7 +7,12 @@ import PhotoUploader from '../components/PhotoUploader';
  * Each file is uploaded through its own venueApi.uploadPhoto call.
  */
 export default function PhotosStep() {
-  const { draft, addPhotos, removePhoto, photoError } = useVenueDraftContext();
+  // movePhoto / makeCoverPhoto exist only in the super admin's venue editor.
+  const { draft, addPhotos, removePhoto, photoError, movePhoto, makeCoverPhoto } = useVenueDraftContext();
+  const order = (gallery) => ({
+    onMove: movePhoto ? (id, delta) => movePhoto(gallery, id, delta) : undefined,
+    onMakeCover: makeCoverPhoto && gallery === 'venuePhotos' ? (id) => makeCoverPhoto(gallery, id) : undefined,
+  });
   const { venuePhotos, serviceImages } = draft.photos;
 
   return (
@@ -26,6 +31,7 @@ export default function PhotosStep() {
         onAdd={(files) => addPhotos('venuePhotos', files)}
         onRemove={(id) => removePhoto('venuePhotos', id)}
         spec="venuePhoto"
+        {...order('venuePhotos')}
         countLabel={`${venuePhotos.length} / ${MAX_VENUE_PHOTOS} uploaded`}
       />
 
@@ -38,6 +44,7 @@ export default function PhotosStep() {
           onAdd={(files) => addPhotos('serviceImages', files)}
           onRemove={(id) => removePhoto('serviceImages', id)}
           spec="serviceImage"
+          {...order('serviceImages')}
           countLabel={`${serviceImages.length} / ${MAX_SERVICE_IMAGES} uploaded`}
         />
       </div>

@@ -14,6 +14,7 @@ import { OTHERS, groupOfType, normalizeVenueType } from '../../constants/categor
 import { detailsFromTimings } from '../../utils/venueTimings.js'
 import { MAX_VENUE_PHOTOS } from '../../constants/venue.js'
 import { offeringKindOf } from '../venue-registration/offerings/model.js'
+import { exactPinCoords } from '../../utils/maps.js'
 
 export const EDIT_TABS = [
   { key: 'basics', label: 'Basic info', icon: 'building-2' },
@@ -38,6 +39,8 @@ export function sectionsFromRecord(record = {}) {
     location: {
       houseStreet: str(d.address), area: str(record.locality), district: str(record.district),
       city: str(record.city), pincode: str(record.pincode || d.pincode), stateName: '', mapsLink: str(d.mapsLink),
+      latitude: d.mapPin?.lat != null ? str(d.mapPin.lat) : '',
+      longitude: d.mapPin?.lng != null ? str(d.mapPin.lng) : '',
     },
     details: {
       primaryCategory: type,
@@ -103,13 +106,16 @@ export function sectionsForEdit(payload = {}) {
 
 /** The PUT body: the edited sections + the record rebuilt from them by the
  *  same mapper a registration publishes with. Never carries payout. */
-export function editRequest(listingId, sections, version) {
+export function editRequest(listingId, sections, version, { locationConfirmed = false } = {}) {
   const { basics, location, details, photos } = sections
   const draft = { basics, location, details, photos }
   return {
     version,
     sections: draft,
     record: listingFromDraft(listingId, draft),
+    // The admin ticked "this is the right place" — the server refuses a save
+    // that moves the pin without it (LOCATION_UNCONFIRMED).
+    ...(locationConfirmed ? { locationConfirmed: true } : {}),
   }
 }
 
@@ -129,6 +135,8 @@ export function editErrors(sections) {
   }
   if (!str(sections.basics?.venueName).trim()) out.basics.venueName = 'Enter the venue name'
   if ((sections.photos?.venuePhotos || []).length === 0) out.photos.venuePhotos = 'Keep at least one venue photo'
+  const conflict = pinConflict(sections.location)
+  if (conflict) out.location.latitude = conflict
   // Edits never require fields a registration only asks for at submit
   // (e.g. a Google Maps link on an older venue) — just valid formats.
   for (const tab of ['basics', 'location']) {
@@ -144,4 +152,144 @@ export function editErrors(sections) {
 /** The first tab with a problem, or ''. */
 export function firstInvalidTab(errors) {
   return EDIT_TABS.find((t) => Object.keys(errors[t.key] || {}).length > 0)?.key || ''
+}
+
+
+// ---- Map location (the pin customers' distances are measured from) -------
+
+const EARTH_RADIUS_KM = 6371
+// Two pins closer than this are the same place — the server's SAME_PLACE_KM.
+export const SAME_PLACE_KM = 0.1
+// The wizard's / server's generous box around India (venues/draft_validation.py).
+const INDIA = { lat: [6, 38], lng: [68, 98] }
+
+const finite = (v) => String(v ?? '').trim() !== '' && Number.isFinite(Number(v))
+
+/** A {lat, lng} the server would accept, or null. */
+export function validPoint(lat, lng) {
+  if (!finite(lat) || !finite(lng)) return null
+  const p = { lat: Number(lat), lng: Number(lng) }
+  if (Math.abs(p.lat) > 90 || Math.abs(p.lng) > 180 || (p.lat === 0 && p.lng === 0)) return null
+  return p
+}
+
+export const inIndia = (p) => Boolean(p) && p.lat >= INDIA.lat[0] && p.lat <= INDIA.lat[1] && p.lng >= INDIA.lng[0] && p.lng <= INDIA.lng[1]
+
+export function distanceKm(a, b) {
+  const rad = (d) => (d * Math.PI) / 180
+  const dLat = rad(b.lat - a.lat)
+  const dLng = rad(b.lng - a.lng)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)))
+}
+
+/** The exact pin the maps link itself carries, as {lat, lng}, or null. */
+export function linkPin(mapsLink) {
+  const text = exactPinCoords(mapsLink || '')
+  if (!text) return null
+  const [lat, lng] = text.split(',')
+  return validPoint(lat, lng)
+}
+
+/** The typed latitude / longitude as {lat, lng}, or null. */
+export const typedPin = (location = {}) => validPoint(location.latitude, location.longitude)
+
+/** The pin this form will publish — the link's exact pin wins, as on the
+ *  server (venues/geo.py record_pin) — or null. */
+export const effectivePin = (location = {}) => linkPin(location.mapsLink) || typedPin(location)
+
+/** An error when the typed pin disagrees with the link's own exact pin (the
+ *  link's would silently win), else ''. */
+export function pinConflict(location = {}) {
+  const fromLink = linkPin(location.mapsLink)
+  const typed = typedPin(location)
+  if (!fromLink || !typed || distanceKm(fromLink, typed) <= SAME_PLACE_KM) return ''
+  return 'The Google Maps link pins a different spot, and its pin is what customers see. Replace the link with this location’s map link, or clear the coordinates.'
+}
+
+/** True when the form's pin is not the saved one (added, moved or cleared). */
+export function pinChanged(savedCoordinates, location) {
+  const before = savedCoordinates ? validPoint(savedCoordinates.lat, savedCoordinates.lng) : null
+  const after = effectivePin(location)
+  if (!before || !after) return Boolean(before) !== Boolean(after)
+  return distanceKm(before, after) > 0.001
+}
+
+const six = (n) => String(Math.round(Number(n) * 1e6) / 1e6)
+
+/** A Google Maps link that pins exactly this point (the server and the
+ *  customer app both read `query=lat,lng` as an exact pin). */
+export const coordinateLink = (p) => `https://www.google.com/maps/search/?api=1&query=${six(p.lat)},${six(p.lng)}`
+
+/**
+ * Coordinates pasted by the admin: "17.3850, 78.4867", "17.385 78.486", or
+ * a Google Maps link that carries a pin. → {lat, lng} | null (never a guess).
+ */
+export function parsePastedPin(text) {
+  const raw = String(text || '').trim()
+  if (!raw) return null
+  if (/^https?:\/\//i.test(raw)) return linkPin(raw)
+  const m = raw.match(/^(-?\d{1,2}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)$/)
+  return m ? validPoint(m[1], m[2]) : null
+}
+
+export const PIN_STATUS = {
+  ok: { label: 'Pinned', tone: 'success' },
+  missing: { label: 'No map location', tone: 'warning' },
+  outside_india: { label: 'Pin outside India', tone: 'error' },
+}
+
+// ---- Photos ------------------------------------------------------------
+
+/** `list` with the item `id` moved by `delta` places (clamped). */
+export function movePhoto(list, id, delta) {
+  const from = list.findIndex((p) => p.id === id)
+  if (from < 0) return list
+  const to = Math.max(0, Math.min(list.length - 1, from + delta))
+  if (to === from) return list
+  const next = list.slice()
+  const [item] = next.splice(from, 1)
+  next.splice(to, 0, item)
+  return next
+}
+
+/** `list` with the item `id` first — the first venue photo is the cover. */
+export const makeCover = (list, id) => movePhoto(list, id, -list.length)
+
+/** Photos on the saved form that the edited form no longer has. */
+export function removedPhotos(savedSections, sections) {
+  const keep = new Set(Object.values(sections?.photos || {}).flat().map((p) => p?.url))
+  const out = []
+  for (const [gallery, items] of Object.entries(savedSections?.photos || {})) {
+    for (const p of items || []) if (p?.url && !keep.has(p.url)) out.push({ gallery, url: p.url })
+  }
+  return out
+}
+
+/**
+ * What the confirmation before saving should spell out: the changes that
+ * customers notice most or that are hard to spot afterwards. → [string]
+ */
+export function majorChanges(saved, sections, savedCoordinates) {
+  const out = []
+  const name = (s) => str(s?.basics?.venueName).trim()
+  if (name(saved) !== name(sections)) out.push(`Name: “${name(saved)}” → “${name(sections)}”`)
+  const type = (s) => str(s?.details?.primaryCategory === OTHERS ? s?.details?.customCategory : s?.details?.primaryCategory)
+  if (type(saved) !== type(sections)) out.push(`Category: ${type(saved) || '—'} → ${type(sections) || '—'}`)
+  if (pinChanged(savedCoordinates, sections.location)) {
+    const p = effectivePin(sections.location)
+    out.push(p ? `Map location set to ${six(p.lat)}, ${six(p.lng)}` : 'Map location removed — the venue will show under “Distance unknown”')
+  }
+  const cover = (s) => s?.photos?.venuePhotos?.[0]?.url || ''
+  if (cover(saved) !== cover(sections)) out.push('A different cover photo')
+  const removed = removedPhotos(saved, sections).length
+  if (removed) out.push(`${removed} photo${removed === 1 ? '' : 's'} removed (kept in the change history)`)
+  return out
+}
+
+/** Identifies the pin the form will publish ('none' when it has none) — the
+ *  admin's confirmation is tied to it, so moving the pin again un-confirms. */
+export function pinKey(location) {
+  const p = effectivePin(location)
+  return p ? `${six(p.lat)}, ${six(p.lng)}` : 'none'
 }

@@ -8,11 +8,11 @@ import { localTodayISO } from '../../utils/slots.js'
 import Badge from '../../components/ui/Badge.jsx'
 import ExportButton from '../../components/ui/ExportButton.jsx'
 import { countStyle, searchStyle, selectStyle } from '../../components/ui/filterStyles.js'
-import { USER_STATUS_OPTIONS, filterUsers, userExportParams } from './userFilters.js'
+import { USER_STATUS_OPTIONS, displayEmail, filterUsers, userExportParams } from './userFilters.js'
 
 const USER_META = { active: ['success', 'Active'], blocked: ['error', 'Blocked'] }
 
-const GRID = { display: 'grid', gridTemplateColumns: '1.7fr 1.2fr 115px 130px 140px 115px', minWidth: 960, gap: 10 }
+const GRID = { display: 'grid', gridTemplateColumns: '1.6fr 1.1fr 1.6fr 105px 125px 135px 110px', minWidth: 1160, gap: 10 }
 
 export default function UsersPage() {
   const { users, openDrawer } = useAdmin()
@@ -74,6 +74,9 @@ export default function UsersPage() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-heading)' }}>{u.name}</div>
                 <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{u.phone}</div>
+                {displayEmail(u) && (
+                  <div style={{ fontSize: 14, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayEmail(u)}</div>
+                )}
               </div>
               <Badge status={statusMeta(USER_META, u.status)[0]} size="sm">{statusMeta(USER_META, u.status)[1]}</Badge>
             </div>
@@ -94,7 +97,7 @@ export default function UsersPage() {
       {noMatch || (
       <div className="card" style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
         <div style={{ ...GRID, padding: '14px 12px 10px', fontSize: 13.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-          <div>Customer</div><div>Phone</div><div>Bookings</div><div>Total spent</div><div>Last active</div><div>Status</div>
+          <div>Customer</div><div>Phone</div><div>Email</div><div>Bookings</div><div>Total spent</div><div>Last active</div><div>Status</div>
         </div>
         {shown.map((u) => (
           <div
@@ -108,6 +111,8 @@ export default function UsersPage() {
               <div style={{ fontSize: 16.5, fontWeight: 700, color: 'var(--text-heading)' }}>{u.name}</div>
             </div>
             <div style={{ fontSize: 16 }}>{u.phone}</div>
+            {/* Blank when the customer has no email — never a placeholder. */}
+            <div title={displayEmail(u) || undefined} style={{ fontSize: 15, color: 'var(--text-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayEmail(u)}</div>
             <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{u.bookings}</div>
             <div style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{fmt(u.spentNum)}</div>
             <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{u.lastActive}</div>
