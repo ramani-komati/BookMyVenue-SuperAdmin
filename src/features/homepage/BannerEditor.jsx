@@ -28,8 +28,8 @@ const toForm = (b, placement) => ({
   imageMobileWidth: b?.imageMobileWidth || 0,
   imageMobileHeight: b?.imageMobileHeight || 0,
   // Which part of the art stays in view when words are drawn over it and a
-  // frame must crop it (backend IMAGE_POSITIONS). Image-only banners always
-  // show the whole artwork.
+  // frame must crop it (backend IMAGE_POSITIONS). Image-only banners show
+  // the whole artwork, except on phones without a phone image (2:1 crop).
   imagePosition: b?.imagePosition || 'center',
   imageMobilePosition: b?.imageMobilePosition || b?.imagePosition || 'center',
   // New banners are image-led: the art carries the message, words optional.
@@ -255,15 +255,24 @@ export default function BannerEditor({ spec, categories, banner, placement, othe
             <section style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={sectionTitle}>Banner image</div>
               <ImageSlot spec={spec} slot="desktop" form={form} set={set} busy={busyImage} setBusy={setBusyImage} />
+              {/* QA audit 2026-11-02: a hero's artwork promised "Upto 10% off
+                  on your first booking" with no coupon behind it. Customers
+                  can only redeem a % / ₹ banner's code. */}
+              {form.image && !discount && (
+                <div role="note" style={{ ...hintStyle, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--warning-600, #d97706)', background: 'var(--warning-50, #fffbeb)', color: 'var(--text-heading, #0f172a)' }}>
+                  This banner has no coupon attached. Make sure the artwork doesn’t advertise a discount or offer —
+                  customers can only redeem a “% off” or “₹ off” banner’s code at checkout.
+                </div>
+              )}
               {form.image && <ImageSlot spec={spec} slot="mobile" form={form} set={set} busy={busyImage} setBusy={setBusyImage} />}
               {form.image && (
                 <div style={grid}>
-                  <Field label="Keep in view — desktop & tablet" hint="Only used when the title is shown over the image. Image-only banners always show the whole artwork.">
+                  <Field label="Keep in view — desktop & tablet" hint="Only used when the title is shown over the image. Image-only banners show the whole artwork on desktop and tablet.">
                     <select className="bmva" style={{ ...inputStyle, cursor: 'pointer' }} value={form.imagePosition} onChange={(e) => set({ imagePosition: e.target.value })}>
                       {FOCUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                     </select>
                   </Field>
-                  <Field label="Keep in view — phones" hint={form.imageMobile ? 'Applies to the phone image.' : 'Applies to the desktop image on phones (no phone image).'}>
+                  <Field label="Keep in view — phones" hint={form.imageMobile ? 'Applies to the phone image.' : 'No phone image: phones crop the desktop image to 2:1 (an image-only banner from the left unless you pick a side). Upload a phone image to show the whole message.'}>
                     <select className="bmva" style={{ ...inputStyle, cursor: 'pointer' }} value={form.imageMobilePosition} onChange={(e) => set({ imageMobilePosition: e.target.value })}>
                       {FOCUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                     </select>

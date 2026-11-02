@@ -66,6 +66,8 @@ export const blankDetails = () => ({
   extraHourPrice: '',
   maxExtraHours: '',
   packages: [],
+  // Vendor's switch: every booking must include a package.
+  packageRequired: false,
   offers: [],
   sportPricing: {},
   sportConfig: {},

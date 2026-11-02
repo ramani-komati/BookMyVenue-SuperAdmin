@@ -27,7 +27,13 @@ function Frame({ frame, form, image, dims, width }) {
   const phone = frame.viewport <= 640
   const showText = !image || broken || form.showText
   const artOnly = Boolean(image) && !broken && !showText
-  const artRatio = dims?.width && dims?.height ? Math.min(6, Math.max(1.2, dims.width / dims.height)) : (phone && form.imageMobile ? 2 : 4)
+  // Phones with NO phone image: the customer site crops wide image-only
+  // art to 2:1 so its words stay readable (customer HeroCarousel
+  // phoneArtFocus) — the admin's phone side, or the left while that is
+  // still the default centre. Drawn the same here.
+  const phoneCrop = phone && artOnly && !form.imageMobile
+  const phoneArtFocus = form.imageMobilePosition && form.imageMobilePosition !== 'center' ? form.imageMobilePosition : 'left'
+  const artRatio = phoneCrop ? 2 : dims?.width && dims?.height ? Math.min(6, Math.max(1.2, dims.width / dims.height)) : (phone && form.imageMobile ? 2 : 4)
   const shown = artOnly ? { width: frame.width, height: Math.round(frame.width / artRatio) } : frame
   const scale = width / shown.width
   const focus = (phone ? form.imageMobilePosition : form.imagePosition) || 'center'
@@ -44,7 +50,7 @@ function Frame({ frame, form, image, dims, width }) {
         }}
       >
         {image && !broken && (
-          <img src={image} alt="" onError={() => setBroken(true)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: artOnly ? 'contain' : 'cover', objectPosition: artOnly ? 'center' : focus }} />
+          <img src={image} alt="" onError={() => setBroken(true)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: artOnly && !phoneCrop ? 'contain' : 'cover', objectPosition: phoneCrop ? phoneArtFocus : artOnly ? 'center' : focus }} />
         )}
         {image && !broken && showText && (
           <span

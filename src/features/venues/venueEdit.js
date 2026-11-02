@@ -66,6 +66,7 @@ export function sectionsFromRecord(record = {}) {
         unitWeekendPrice: Object.fromEntries((s.unitWeekendPrices || []).map((p, i) => [i, str(p)])),
       }])),
       packages: (d.packages || []).map((p) => ({ label: str(p.label), details: str(p.details), price: str(p.price), duration: str(p.duration), chargePerHour: false, maxPersons: '' })),
+      packageRequired: Boolean(d.packageRequired),
       subCategories: Object.fromEntries((d.occasions || []).map((o) => [o, true])),
       extraPersonPrice: str(d.extraPersonPrice),
       maxExtraPersons: str(d.maxExtraPersons),

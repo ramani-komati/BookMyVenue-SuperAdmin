@@ -108,6 +108,9 @@ export function detailFromDraft(basics = {}, location = {}, details = {}, photos
     packages: (details.packages || [])
       .filter((p) => p?.label?.trim() || p?.price)
       .map((p) => ({ label: p.label || 'Package', price: p.price || '', duration: p.duration || '', details: p.details || '' })),
+    // The vendor's "customers must choose a package" switch (same as the
+    // customer app's vendor portal) — kept through an admin edit.
+    packageRequired: Boolean(details.packageRequired) && (details.packages || []).some((p) => p?.label?.trim() || p?.price),
     offers: (details.offers || [])
       .filter((o) => (o?.value != null && String(o.value).trim() !== '') && (o?.title?.trim() || o?.code?.trim()))
       .map((o) => ({

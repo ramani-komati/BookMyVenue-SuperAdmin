@@ -8,7 +8,7 @@ import useDetails from './useDetails';
  * package with a name and price — the submit gate blocks without it.
  */
 export default function PricingPackagesPanel() {
-  const { details, addPackage, removePackage, updatePackage, flushNow } = useDetails();
+  const { details, addPackage, removePackage, updatePackage, toggleBool, flushNow } = useDetails();
 
   return (
     <div className="rv-panel">
@@ -84,6 +84,24 @@ export default function PricingPackagesPanel() {
       <Button variant="secondary" size="sm" onClick={addPackage} iconLeft={<Icon name="plus" size={17} />}>
         Add package
       </Button>
+
+      {/* QA audit 2026-11-02: skipping a package could be cheaper than the
+          package itself. The vendor decides whether plain hourly bookings
+          are allowed; the server enforces it (bookings.views.package_required).
+          Without a per-unit price packages are required automatically. */}
+      {details.packages.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <Checkbox
+            label="Customers must choose a package (no plain hourly bookings)"
+            checked={Boolean(details.packageRequired)}
+            onChange={() => toggleBool('packageRequired')}
+          />
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
+            Turn this on when your prices depend on the package (players, decoration, guests). Venues without a
+            per-unit booking price are booked by package automatically.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
