@@ -3,19 +3,23 @@ import { adminApi } from '../../services/adminApi.js'
 import Button from '../../components/ui/Button.jsx'
 import { lockBodyScroll, unlockBodyScroll } from '../../utils/scrollLock.js'
 import { hintStyle, inputStyle } from '../homepage/homepageUi.jsx'
-import { SEND_ALL_PHRASE, cleanAudience, needsAllConfirm } from './campaignModel.js'
+import { KIND_INFO, SEND_ALL_PHRASE, cleanAudience, needsAllConfirm } from './campaignModel.js'
 
 const n = (v) => (Number(v) || 0).toLocaleString('en-IN')
 
 /**
  * The last step before real email goes out. Re-counts the audience when it
  * opens and sends THAT count to the server, which refuses if it changed in
- * between. Sending to everyone also needs the phrase typed out.
+ * between. Sending to everyone also needs the phrase typed out, and a
+ * service email needs the admin to confirm it carries no offers (the server
+ * refuses it otherwise: CONFIRM_SERVICE_REQUIRED).
  */
-export default function SendDialog({ campaign, audience, delivery, onClose, onSent }) {
+export default function SendDialog({ campaign, kind = 'promotional', audience, delivery, onClose, onSent }) {
   const [count, setCount] = useState(null)
   const [label, setLabel] = useState('')
   const [phrase, setPhrase] = useState('')
+  const [serviceOk, setServiceOk] = useState(false)
+  const service = kind === 'service'
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const everyone = needsAllConfirm(audience)
@@ -25,7 +29,7 @@ export default function SendDialog({ campaign, audience, delivery, onClose, onSe
   const recount = async () => {
     setCount(null)
     try {
-      const res = await adminApi.estimateAudience(cleanAudience(audience))
+      const res = await adminApi.estimateAudience(cleanAudience(audience), kind)
       setCount(res.count)
       setLabel(res.label)
     } catch (err) {
@@ -42,7 +46,8 @@ export default function SendDialog({ campaign, audience, delivery, onClose, onSe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const blocked = busy || count == null || count === 0 || (everyone && phrase.trim().toUpperCase() !== SEND_ALL_PHRASE)
+  const blocked = busy || count == null || count === 0 || (service && !serviceOk)
+    || (everyone && phrase.trim().toUpperCase() !== SEND_ALL_PHRASE)
 
   const send = async () => {
     if (blocked) return
@@ -50,7 +55,8 @@ export default function SendDialog({ campaign, audience, delivery, onClose, onSe
     setError('')
     try {
       const res = await adminApi.sendCampaign(campaign.id, {
-        confirm: true, confirmAll: everyone, expectedCount: count, version: campaign.version,
+        confirm: true, confirmAll: everyone, confirmService: service && serviceOk,
+        expectedCount: count, version: campaign.version,
       })
       onSent(res.campaign)
     } catch (err) {
@@ -69,20 +75,30 @@ export default function SendDialog({ campaign, audience, delivery, onClose, onSe
           {dryRun ? 'Run a dry-run send?' : 'Send this campaign?'}
         </div>
         <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 15 }}>
+          <div><strong>Type:</strong> {KIND_INFO[kind]?.label}{service && campaign.serviceTopicLabel ? ` — ${campaign.serviceTopicLabel}` : ''}</div>
           <div><strong>Subject:</strong> {campaign.subject}</div>
           <div><strong>Audience:</strong> {label || '…'}</div>
           <div><strong>Recipients:</strong> {count == null ? 'counting…' : n(count)}</div>
-          {delivery?.from && <div><strong>From:</strong> {delivery.from}</div>}
+          {(service ? delivery?.serviceFrom : delivery?.from) && <div><strong>From:</strong> {service ? delivery.serviceFrom : delivery.from}</div>}
         </div>
         <div style={{ fontSize: 15, color: 'var(--text-body)', lineHeight: 1.5 }}>
           {dryRun
             ? 'This server is in dry-run mode: the whole send runs, but no email is actually delivered.'
             : 'Emails start going out right away and cannot be recalled. You can stop the remainder while it is still sending.'}
         </div>
+        {service && (
+          <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 14.5, color: 'var(--text-heading)', lineHeight: 1.45 }}>
+            <input type="checkbox" checked={serviceOk} onChange={(e) => setServiceOk(e.target.checked)} style={{ marginTop: 3 }} />
+            <span>
+              This is an important service or account message with <strong>no offers, discounts or marketing</strong>.
+              It goes to registered customers whether or not they opted in to promotional email.
+            </span>
+          </label>
+        )}
         {everyone && (
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-heading)' }}>
-              This goes to ALL eligible customers. Type <strong>{SEND_ALL_PHRASE}</strong> to confirm.
+              This goes to ALL {service ? 'registered' : 'eligible'} customers. Type <strong>{SEND_ALL_PHRASE}</strong> to confirm.
             </span>
             <input className="bmva" style={inputStyle} value={phrase} onChange={(e) => setPhrase(e.target.value)} autoFocus aria-label={`Type ${SEND_ALL_PHRASE}`} />
           </label>

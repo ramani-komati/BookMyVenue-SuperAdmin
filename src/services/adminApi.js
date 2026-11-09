@@ -1,4 +1,4 @@
-// TheBookMyVenues super-admin — API service layer.
+// HAPVOO super-admin — API service layer.
 //
 // Talks to the real backend only (the demo/mock layer was removed once the
 // /api/admin endpoints went live). Components never touch the network
@@ -36,9 +36,46 @@ export function wakeBackend() {
   fetch(API_BASE.replace(/\/admin$/, '') + '/v1/health', { mode: 'no-cors' }).catch(() => {})
 }
 
-async function request(path, { method = 'GET', body, form, blob = false } = {}) {
+// `signal` lets a page cancel a read it no longer needs (it navigated away);
+// `timeoutMs` turns a request the server never answers into an error the
+// page can show with a Retry, instead of "Loading…" for ever. A cancelled
+// request rejects with err.aborted = true — callers ignore those.
+async function request(path, { method = 'GET', body, form, blob = false, signal, timeoutMs = 0 } = {}) {
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = timeoutMs > 0 ? setTimeout(() => { timedOut = true; controller.abort() }, timeoutMs) : null
+  const onAbort = () => controller.abort()
+  if (signal) {
+    if (signal.aborted) controller.abort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+  }
+  try {
+    return await send(path, { method, body, form, blob, signal: controller.signal })
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      const wrapped = new Error(timedOut
+        ? 'The server took too long to answer. Please try again.'
+        : 'Request cancelled')
+      wrapped.aborted = !timedOut
+      wrapped.timedOut = timedOut
+      wrapped.status = 0
+      throw wrapped
+    }
+    throw err
+  } finally {
+    if (timer) clearTimeout(timer)
+    if (signal) signal.removeEventListener('abort', onAbort)
+  }
+}
+
+// How long a campaign-page read may take before it shows an error + Retry.
+// Generous: a Render cold start alone can take ~30 s.
+export const CAMPAIGN_READ_TIMEOUT_MS = 45000
+
+async function send(path, { method, body, form, blob, signal }) {
   const res = await fetch(API_BASE + path, {
     method,
+    signal,
     credentials: 'include',
     headers: form
       // Multipart MUST NOT set Content-Type by hand (the browser adds the
@@ -77,6 +114,15 @@ export const adminApi = {
 
   // ---------- reads ----------
   fetchAll: () => request('/bootstrap'),
+  // Dashboard money + booking figures for one date range, venue bookings and
+  // event tickets together (backend reports/finance.py). params: { range:
+  // today|yesterday|7d|30d|month|all|custom, from?, to? } (IST dates).
+  dashboard: (params = {}, { signal } = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ''),
+    ).toString()
+    return request(`/dashboard${query ? `?${query}` : ''}`, { signal, timeoutMs: 60000 })
+  },
   // The Bookings page as an .xlsx, filtered ON THE SERVER with the page's
   // own filters (type, status, date/basis/from/to/today, q) — see
   // unifiedBookings.exportParams. Resolves to a Blob.
@@ -118,6 +164,13 @@ export const adminApi = {
   deleteBooking: (id, reason) => request(
     `/bookings/${encodeURIComponent(id)}`,
     { method: 'DELETE', body: reason ? { reason } : undefined },
+  ),
+  // Email the customer their PDF tickets again — paid orders only; the
+  // server refuses unpaid ones (409), repeats within 10 minutes (429) and
+  // audits every resend. Nothing goes to the vendor and no SMS is sent.
+  resendEventTickets: (id) => request(
+    `/event-orders/${encodeURIComponent(id)}/resend-tickets`,
+    { method: 'POST', body: { confirm: true } },
   ),
   deleteEventOrder: (id, reason) => request(
     `/event-orders/${encodeURIComponent(id)}`,
@@ -237,28 +290,34 @@ export const adminApi = {
   appendAudit: (entry) => request('/audit', { method: 'POST', body: entry }),
 
   // ---------- Email campaigns (backend campaigns/admin_views.py) ----------
-  // Promotional email only — OTP and booking mail are separate and never
-  // touched. The Resend key stays on the server; delivery reports show masked
+  // Promotional campaigns (opted-in customers only) and service campaigns
+  // (booking / payment / account notices to registered customers, no offers)
+  // — OTP and booking-confirmation mail are separate and never touched. The Resend key stays on the server; delivery reports show masked
   // addresses; the audience check lists eligible customers in full (admin
   // only). Sending is off unless the server's CAMPAIGN_DELIVERY says
   // otherwise (listCampaigns().delivery.mode).
-  listCampaigns: () => request('/campaigns'),
-  campaignOptions: () => request('/campaigns/options'),
-  getCampaign: (id) => request(`/campaigns/${id}`),
+  // Reads take { signal } so the page can cancel them when it is left, and
+  // time out instead of hanging (CAMPAIGN_READ_TIMEOUT_MS).
+  listCampaigns: ({ signal } = {}) => request('/campaigns', { signal, timeoutMs: CAMPAIGN_READ_TIMEOUT_MS }),
+  campaignOptions: ({ signal } = {}) => request('/campaigns/options', { signal, timeoutMs: CAMPAIGN_READ_TIMEOUT_MS }),
+  getCampaign: (id, { signal } = {}) => request(`/campaigns/${id}`, { signal, timeoutMs: CAMPAIGN_READ_TIMEOUT_MS }),
   createCampaign: (fields) => request('/campaigns', { method: 'POST', body: fields }),
   // `version` = the campaign's version when loaded; 409 STALE if another
   // admin saved since (err.detail.campaign carries theirs).
   saveCampaign: (id, fields) => request(`/campaigns/${id}`, { method: 'PATCH', body: fields }),
   deleteCampaign: (id) => request(`/campaigns/${id}`, { method: 'DELETE' }),
   duplicateCampaign: (id) => request(`/campaigns/${id}/duplicate`, { method: 'POST' }),
-  // -> { count, eligibleTotal, customers, withEmail, optedIn, suppressed, label }
-  estimateAudience: (audience) => request('/campaigns/audience', { method: 'POST', body: { audience } }),
+  // -> { kind, count, eligibleTotal, customers, withEmail, optedIn, suppressed,
+  //      eligibleAccounts, ineligibleTotal, ineligible: [{ key, label, count,
+  //      explanation }], label }. `kind` = 'promotional' | 'service'.
+  estimateAudience: (audience, kind = 'promotional') =>
+    request('/campaigns/audience', { method: 'POST', body: { audience, kind } }),
   // The customers that audience reaches — the SAME list a send freezes:
   // -> { total, matched, page, pageSize, recipients: [{ id, name, email,
   //      city, state, interests, hasInterests, reason, … }] }. Admin-only;
   // nothing is sent.
-  audienceRecipients: (audience, { page = 1, search = '' } = {}) =>
-    request('/campaigns/audience/recipients', { method: 'POST', body: { audience, page, search } }),
+  audienceRecipients: (audience, { page = 1, search = '', kind = 'promotional' } = {}) =>
+    request('/campaigns/audience/recipients', { method: 'POST', body: { audience, kind, page, search } }),
   // Server-rendered HTML of unsaved edits — exactly what customers receive.
   previewCampaign: (fields) => request('/campaigns/preview', { method: 'POST', body: fields }),
   campaignImages: () => request('/campaigns/images'),
@@ -268,7 +327,8 @@ export const adminApi = {
     return request('/campaigns/images', { method: 'POST', form })
   },
   sendCampaignTest: (id, to) => request(`/campaigns/${id}/test`, { method: 'POST', body: { to } }),
-  // { confirm: true, confirmAll?, expectedCount, version } — refused (409)
+  // { confirm: true, confirmAll?, confirmService? (service campaigns),
+  //   expectedCount, version } — refused (409)
   // when already sent, when the audience count changed, or delivery is off.
   sendCampaign: (id, body) => request(`/campaigns/${id}/send`, { method: 'POST', body }),
   cancelCampaign: (id) => request(`/campaigns/${id}/cancel`, { method: 'POST' }),

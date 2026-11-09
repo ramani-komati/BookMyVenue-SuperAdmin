@@ -66,13 +66,13 @@ export default function LoginPage() {
       {/* The proper home-page logo (navy lettering) on a white chip so it reads
           cleanly against the navy sign-in screen. */}
       <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? '14px 24px' : '18px 32px', boxShadow: 'var(--shadow-lg)' }}>
-        <img src="/assets/logo-full.png" alt="TheBookMyVenues" style={{ height: isMobile ? 48 : 62, width: 'auto', display: 'block' }} />
+        <img src="/assets/logo-full.png" alt="HAPVOO" style={{ height: isMobile ? 48 : 62, width: 'auto', display: 'block' }} />
       </div>
 
       <div style={{ background: 'var(--surface-card)', borderRadius: 16, boxShadow: 'var(--shadow-lg)', padding: isMobile ? 24 : 48, width: 520, maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: 24 }}>
         <div>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: isMobile ? 25 : 30, fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '-0.01em' }}>Admin sign in</div>
-          <div style={{ fontSize: 15.5, color: 'var(--text-muted)', marginTop: 6 }}>For TheBookMyVenues staff only. Vendors and customers sign in on the app.</div>
+          <div style={{ fontSize: 15.5, color: 'var(--text-muted)', marginTop: 6 }}>For HAPVOO staff only. Vendors and customers sign in on the app.</div>
         </div>
 
         {step === 1 && (
@@ -80,7 +80,7 @@ export default function LoginPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-heading)' }}>Work email</label>
               <input
-                className="bmva" type="email" placeholder="you@thebookmyvenues.in" value={email}
+                className="bmva" type="email" placeholder="you@company.com" value={email}
                 onChange={(e) => { setEmail(e.target.value); setErr('') }}
                 onKeyDown={(e) => e.key === 'Enter' && submitLogin()}
                 style={inputStyle}

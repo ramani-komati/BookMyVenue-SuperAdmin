@@ -1,24 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { adminApi } from '../../services/adminApi.js'
 import { Field, hintStyle, inputStyle } from '../homepage/homepageUi.jsx'
-import { DAY_SEGMENTS, SEGMENT_HELP, audienceProblem, cleanAudience, emptyAudienceReason } from './campaignModel.js'
+import { DAY_SEGMENTS, KIND_INFO, audienceProblem, cleanAudience, emptyAudienceReason, segmentAllowed, segmentHelp } from './campaignModel.js'
 
 const n = (v) => (Number(v) || 0).toLocaleString('en-IN')
 
 /**
- * Who receives the campaign, with a live count and the actual list. Consent
- * is applied on the server before any segment: only customers who opted in
- * themselves, with a valid address that has not bounced or complained, are
- * ever counted — one per address. The count, this list and the list a send
- * freezes all come from the same server function (campaigns/audience.py
+ * Who receives the campaign, with a live count and the actual list. The
+ * campaign KIND is applied on the server before any segment: promotional
+ * mail reaches only customers who opted in themselves; service mail reaches
+ * every registered customer — in both cases with a valid address that has
+ * not bounced or complained, one per address. Everyone else is counted
+ * under the reason they are left out. The count, this list and the list a
+ * send freezes all come from the same server function (campaigns/audience.py
  * recipients), so they always agree. Choosing an audience never sends.
  */
-export default function AudiencePanel({ audience, onChange, options, disabled, onEstimate }) {
+export default function AudiencePanel({ kind = 'promotional', audience, onChange, options, disabled, onEstimate }) {
   const [estimate, setEstimate] = useState({ status: 'idle' })
   const [showList, setShowList] = useState(false)
+  const [showWhy, setShowWhy] = useState(false)
   const seq = useRef(0)
   const cleaned = JSON.stringify(cleanAudience(audience))
-  const problem = audienceProblem(audience)
+  const problem = audienceProblem(audience, kind)
   const estimateRef = useRef(onEstimate)
   estimateRef.current = onEstimate
 
@@ -28,7 +31,7 @@ export default function AudiencePanel({ audience, onChange, options, disabled, o
     setEstimate((e) => ({ ...e, status: 'loading' }))
     const timer = setTimeout(async () => {
       try {
-        const res = await adminApi.estimateAudience(JSON.parse(cleaned))
+        const res = await adminApi.estimateAudience(JSON.parse(cleaned), kind)
         if (mine !== seq.current) return
         setEstimate({ status: 'ready', ...res })
         estimateRef.current?.(res)
@@ -39,22 +42,24 @@ export default function AudiencePanel({ audience, onChange, options, disabled, o
       }
     }, 350)
     return () => clearTimeout(timer)
-  }, [cleaned, problem])
+  }, [cleaned, problem, kind])
 
   const set = (change) => onChange({ ...audience, ...change })
   const segment = audience.segment || 'all'
   const states = options?.locations || []
   const cities = states.find((s) => s.state === audience.state)?.cities || []
   const interests = options?.interests || { categories: [], cities: [] }
-  const empty = estimate.status === 'ready' ? emptyAudienceReason(estimate) : ''
+  const empty = estimate.status === 'ready' ? emptyAudienceReason(estimate, kind) : ''
+  const segments = (options?.segments || [{ key: 'all', label: 'All eligible customers' }])
+    .filter((s) => segmentAllowed(kind, s.key))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Field label="Send to" hint={SEGMENT_HELP[segment]}>
+      <Field label="Send to" hint={segmentHelp(kind, segment)}>
         <select className="bmva" style={inputStyle} value={segment} disabled={disabled}
           onChange={(e) => onChange({ segment: e.target.value })}>
-          {(options?.segments || [{ key: 'all', label: 'All eligible customers' }]).map((s) => (
-            <option key={s.key} value={s.key}>{s.label}</option>
+          {segments.map((s) => (
+            <option key={s.key} value={s.key}>{s.key === 'all' && kind === 'service' ? 'All registered customers' : s.label}</option>
           ))}
         </select>
       </Field>
@@ -136,13 +141,15 @@ export default function AudiencePanel({ audience, onChange, options, disabled, o
             <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-muted)' }}>eligible recipients</span>
           </div>
           {estimate.status === 'ready' && (
-            <div style={hintStyle}>
-              Of {n(estimate.customers)} customers, {n(estimate.withEmail)} have an email and {n(estimate.optedIn)} opted in to offers
-              {estimate.suppressed ? ` (${n(estimate.suppressed)} excluded after a bounce or spam report)` : ''}
-              {estimate.invalidEmail ? `; ${n(estimate.invalidEmail)} invalid address${estimate.invalidEmail === 1 ? '' : 'es'} skipped` : ''}
-              {estimate.duplicates ? `; ${n(estimate.duplicates)} duplicate address${estimate.duplicates === 1 ? '' : 'es'} counted once` : ''}.
-              {' '}Only opted-in customers can ever receive a campaign.
-            </div>
+            <Eligibility
+              kind={kind}
+              estimate={estimate}
+              allSelected={segment === 'all'}
+              disabled={disabled}
+              onSelectAll={() => onChange({ segment: 'all' })}
+              showWhy={showWhy}
+              onToggleWhy={() => setShowWhy((v) => !v)}
+            />
           )}
           {empty && (
             <div role="status" style={{ ...hintStyle, color: 'var(--text-heading)', background: 'var(--warning-50, #FFF8E6)', border: '1px solid var(--warning-500, #E5A50A)', borderRadius: 8, padding: '8px 10px' }}>
@@ -159,9 +166,66 @@ export default function AudiencePanel({ audience, onChange, options, disabled, o
             </div>
           )}
           {showList && estimate.status === 'ready' && estimate.count > 0 && (
-            <RecipientList audienceJson={cleaned} />
+            <RecipientList audienceJson={cleaned} kind={kind} />
           )}
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Eligible vs not eligible for this campaign TYPE across every customer
+ * account (before the segment narrows it), with the reason each group is
+ * left out, and a one-click "select all eligible recipients".
+ */
+function Eligibility({ kind, estimate, allSelected, disabled, onSelectAll, showWhy, onToggleWhy }) {
+  const eligible = estimate.eligibleAccounts ?? estimate.eligibleTotal
+  const reasons = (estimate.ineligible || []).filter((r) => r.count > 0)
+  const box = { border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '8px 12px', background: 'var(--surface-card, #fff)', minWidth: 0 }
+  const link = { background: 'none', border: 'none', padding: 0, color: 'var(--brand-600, #C2410C)', fontWeight: 700, cursor: 'pointer', fontSize: 14, textAlign: 'left' }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+        <div style={box}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--success-700, #15803D)' }}>{n(eligible)}</div>
+          <div style={hintStyle}>eligible for {KIND_INFO[kind].label.toLowerCase()} email</div>
+        </div>
+        <div style={box}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-heading)' }}>{n(estimate.ineligibleTotal)}</div>
+          <div style={hintStyle}>not eligible</div>
+        </div>
+      </div>
+      <div style={{ ...hintStyle, lineHeight: 1.5 }}>
+        {kind === 'service'
+          ? 'Service emails go to registered customers without asking for marketing consent, because they are not marketing. Unsubscribing from offers does not stop them; bounced or spam-reported addresses and deactivated accounts are always left out.'
+          : 'Promotional emails go only to customers who opted in themselves. Nobody is ever added without their consent, and an unsubscribe is always honoured.'}
+      </div>
+      <div style={{ display: 'flex', gap: '6px 16px', flexWrap: 'wrap', alignItems: 'center' }}>
+        {allSelected ? (
+          <span style={{ ...hintStyle, color: 'var(--success-700, #15803D)', fontWeight: 600 }}>All {n(eligible)} eligible recipients are selected.</span>
+        ) : (
+          <button type="button" className="bmva" onClick={onSelectAll} disabled={disabled || !eligible} style={link}>
+            Select all eligible recipients ({n(eligible)})
+          </button>
+        )}
+        {reasons.length > 0 && (
+          <button type="button" className="bmva" onClick={onToggleWhy} aria-expanded={showWhy} style={link}>
+            {showWhy ? 'Hide why customers are not eligible' : 'Why are some customers not eligible?'}
+          </button>
+        )}
+      </div>
+      {showWhy && reasons.length > 0 && (
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {reasons.map((r) => (
+            <li key={r.key} style={box}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontWeight: 700, color: 'var(--text-heading)' }}>
+                <span>{r.label}</span><span>{n(r.count)}</span>
+              </div>
+              <div style={{ ...hintStyle, marginTop: 2 }}>{r.explanation}</div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )
@@ -193,13 +257,13 @@ function ChoiceList({ label, hint, choices, picked, onChange, disabled, emptyTex
  * The eligible customers, 25 per page, searchable by name or email. Full
  * addresses are shown to the super admin only (the endpoint is IsAdmin).
  */
-function RecipientList({ audienceJson }) {
+function RecipientList({ audienceJson, kind }) {
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
   const [state, setState] = useState({ status: 'loading' })
 
-  useEffect(() => { setPage(1) }, [audienceJson, search])
+  useEffect(() => { setPage(1) }, [audienceJson, search, kind])
   useEffect(() => {
     const t = setTimeout(() => setSearch(query.trim()), 300)
     return () => clearTimeout(t)
@@ -208,11 +272,11 @@ function RecipientList({ audienceJson }) {
   useEffect(() => {
     let alive = true
     setState((s) => ({ ...s, status: 'loading' }))
-    adminApi.audienceRecipients(JSON.parse(audienceJson), { page, search })
+    adminApi.audienceRecipients(JSON.parse(audienceJson), { page, search, kind })
       .then((res) => { if (alive) setState({ status: 'ready', ...res }) })
       .catch((err) => { if (alive) setState({ status: 'error', error: err.message }) })
     return () => { alive = false }
-  }, [audienceJson, page, search])
+  }, [audienceJson, page, search, kind])
 
   const rows = state.recipients || []
   const pages = Math.max(1, Math.ceil((state.matched ?? state.total ?? 0) / (state.pageSize || 25)))

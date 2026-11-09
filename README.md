@@ -1,7 +1,7 @@
-# BookMyVenues — Super Admin Panel
+# HAPVOO — Super Admin Panel
 
-Internal admin panel for BookMyVenues staff, implemented from the **Admin Panel v2** Claude Design
-(`Admin Panel v2.dc.html`) using the BookMyVenues Design System tokens (red `#F1252E` + navy `#06152C`,
+Internal admin panel for HAPVOO staff (formerly TheBookMyVenues), implemented from the **Admin Panel v2** Claude Design
+(`Admin Panel v2.dc.html`) using the original BookMyVenues Design System tokens (red `#F1252E` + navy `#06152C`,
 Plus Jakarta Sans, Lucide icons).
 
 ## Run

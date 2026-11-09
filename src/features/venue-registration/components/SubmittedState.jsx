@@ -56,7 +56,7 @@ export default function SubmittedState() {
         }}
       >
         <strong style={{ color: 'var(--text-heading)' }}>{name}</strong> is now live on
-        TheBookMyVenues and open for bookings — no approval needed. It appears in Live venues.
+        HAPVOO and open for bookings — no approval needed. It appears in Live venues.
       </p>
       <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
         <Button

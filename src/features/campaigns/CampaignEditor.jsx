@@ -9,8 +9,9 @@ import { Field, hintStyle, inputStyle, sectionTitle, textareaStyle } from '../ho
 import AudiencePanel from './AudiencePanel.jsx'
 import CampaignImages from './CampaignImages.jsx'
 import EmailPreview from './EmailPreview.jsx'
+import KindPicker from './KindPicker.jsx'
 import SendDialog from './SendDialog.jsx'
-import { LIMITS, formFromCampaign, sameForm, sendProblems, toPayload } from './campaignModel.js'
+import { LIMITS, formFromCampaign, sameForm, sendProblems, toPayload, withKind } from './campaignModel.js'
 
 function Counter({ value, max }) {
   const over = value.length > max
@@ -20,7 +21,8 @@ function Counter({ value, max }) {
 const errorText = (msg) => msg && <span style={{ ...hintStyle, color: 'var(--error-600)' }}>{msg}</span>
 
 /**
- * Draft editor: details, content (text, images, button), audience — with the
+ * Draft editor: type (promotional / service), details, content (text,
+ * images, button), audience — with the
  * server-rendered preview beside it. Save draft, send a test, send for real.
  * Edits stay local until saved; leaving with unsaved edits asks first.
  */
@@ -140,6 +142,18 @@ export default function CampaignEditor({ campaign, options, delivery, onSaved })
       <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
           <section className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={sectionTitle}>Campaign type</div>
+            <KindPicker
+              kind={form.kind}
+              serviceTopic={form.serviceTopic}
+              topics={options?.serviceTopics}
+              onKind={(kind) => setForm((f) => withKind(f, kind))}
+              onTopic={(serviceTopic) => setForm((f) => ({ ...f, serviceTopic }))}
+              problems={{ kind: problems.kind, serviceTopic: shown.serviceTopic }}
+            />
+          </section>
+
+          <section className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={sectionTitle}>Campaign</div>
             <Field label="Campaign name" hint="Only admins see this.">
               <input className="bmva" style={inputStyle} value={form.name} maxLength={LIMITS.name} onChange={set('name')} placeholder="e.g. Diwali 2026 — party halls" />
@@ -183,7 +197,7 @@ export default function CampaignEditor({ campaign, options, delivery, onSaved })
 
           <section className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={sectionTitle}>Audience</div>
-            <AudiencePanel audience={form.audience} options={options} onChange={(audience) => setForm((f) => ({ ...f, audience }))} />
+            <AudiencePanel kind={form.kind} audience={form.audience} options={options} onChange={(audience) => setForm((f) => ({ ...f, audience }))} />
           </section>
         </div>
 
@@ -215,6 +229,7 @@ export default function CampaignEditor({ campaign, options, delivery, onSaved })
       {sending && (
         <SendDialog
           campaign={campaign}
+          kind={form.kind}
           audience={form.audience}
           delivery={delivery}
           onClose={() => setSending(false)}

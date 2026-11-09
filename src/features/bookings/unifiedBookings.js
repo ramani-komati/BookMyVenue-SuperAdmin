@@ -177,8 +177,8 @@ export function exportParams({ type, status, date, basis, from, to, query } = {}
   return params
 }
 
-// "bookmyvenues_bookings_2026-10-13.xlsx" — matches the server's filename.
-export const exportFilename = (today) => `bookmyvenues_bookings_${today}.xlsx`
+// "hapvoo_bookings_2026-10-13.xlsx" — matches the server's filename.
+export const exportFilename = (today) => `hapvoo_bookings_${today}.xlsx`
 
 // Venue booking badges, keyed by the status the backend reports.
 const VENUE_BADGE = {
@@ -228,6 +228,24 @@ export function deletePrompt(row) {
   return {
     title: `Delete booking ${ref}?`,
     body: `${row?.customer || 'This customer'}'s ${what} (${fmt(row?.amountNum)}, no payment captured) will be removed from the Bookings list and the totals. The record is kept on the server for the audit trail; nothing is refunded or charged.`,
+  }
+}
+
+// May the admin email this order's PDF tickets again? Only an event order
+// that is paid and still stands (booking confirmed/completed, payment
+// captured) has valid tickets — the server enforces the same rule (409).
+export function canResendTickets(row) {
+  if (row?.kind !== 'event') return false
+  const s = bookingStates(row)
+  return s.payment === 'completed' && (s.booking === 'confirmed' || s.booking === 'completed')
+}
+
+export function resendPrompt(row) {
+  const ref = displayRef(row)
+  const n = Number(row?.tickets) || 0
+  return {
+    title: `Resend tickets for ${ref}?`,
+    body: `${row?.customer || 'The customer'} will get the ticket email again with the PDF attached (${n} ticket${n === 1 ? '' : 's'}, each with its own QR code), sent to the email address on their account. Nothing goes to the vendor and no SMS is sent. Resends are limited to one every 10 minutes and are recorded in the audit log.`,
   }
 }
 

@@ -162,6 +162,7 @@ export default function CampaignReport({ campaign, delivery, onChanged }) {
         </div>
         <div style={{ fontSize: 15, color: 'var(--text-body)', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div><strong>Subject:</strong> {campaign.subject}</div>
+          <div><strong>Type:</strong> {campaign.kind === 'service' ? `Service / Transactional${campaign.serviceTopicLabel ? ` · ${campaign.serviceTopicLabel}` : ''}` : 'Promotional'}</div>
           <div><strong>Audience:</strong> {campaign.audienceLabel}</div>
           <div style={hintStyle}>
             Created {when(campaign.createdAt)}{campaign.createdBy ? ` by ${campaign.createdBy}` : ''} · Sent {when(campaign.queuedAt)}{campaign.sentBy ? ` by ${campaign.sentBy}` : ''}

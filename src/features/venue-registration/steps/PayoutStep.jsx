@@ -16,7 +16,7 @@ function TermsAgreement() {
   return (
     <div className="rv-subbox" style={{ marginTop: 4 }}>
       <Checkbox
-        label="I agree to the platform commission and the TheBookMyVenues partner terms."
+        label="I agree to the platform commission and the HAPVOO partner terms."
         checked={agreed}
         onChange={(e) => {
           setField('payout', 'agreedToTerms', e.target.checked);

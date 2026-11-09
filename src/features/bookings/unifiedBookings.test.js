@@ -338,5 +338,23 @@ test('every status filter value is one the export endpoint accepts', () => {
 })
 
 test('export filename', () => {
-  assert.equal(exportFilename('2026-10-13'), 'bookmyvenues_bookings_2026-10-13.xlsx')
+  assert.equal(exportFilename('2026-10-13'), 'hapvoo_bookings_2026-10-13.xlsx')
+})
+
+// --- Resend PDF tickets (event orders only, paid and still standing) -------
+
+test('only a paid, standing event order offers "Resend PDF tickets"', async () => {
+  const { canResendTickets, resendPrompt } = await import('./unifiedBookings.js')
+  const order = (bookingState, paymentState) => ({ kind: 'event', id: 'K7M2QX', bookingState, paymentState, tickets: 3, customer: 'Asha' })
+  assert.equal(canResendTickets(order('confirmed', 'completed')), true)
+  assert.equal(canResendTickets(order('completed', 'completed')), true)
+  assert.equal(canResendTickets(order('pending', 'pending')), false)
+  assert.equal(canResendTickets(order('not_confirmed', 'failed')), false)
+  assert.equal(canResendTickets(order('cancelled', 'refunded')), false)
+  assert.equal(canResendTickets(order('cancelled', 'completed')), false)   // cancelled after paying
+  assert.equal(canResendTickets({ kind: 'venue', bookingState: 'confirmed', paymentState: 'completed' }), false)
+  const prompt = resendPrompt(order('confirmed', 'completed'))
+  assert.match(prompt.title, /K7M2QX/)
+  assert.match(prompt.body, /3 tickets/)
+  assert.match(prompt.body, /no SMS/)
 })

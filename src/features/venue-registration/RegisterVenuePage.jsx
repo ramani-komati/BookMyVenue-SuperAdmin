@@ -236,7 +236,7 @@ function OwnerGate({ onResolved }) {
  * owner-phone step that mints the impersonation token.
  */
 export default function RegisterVenuePage() {
-  useDocumentTitle('Register a venue · TheBookMyVenues');
+  useDocumentTitle('Register a venue · HAPVOO');
   const [owner, setOwner] = useState(null);
   return owner ? (
     <VenueDraftProvider>

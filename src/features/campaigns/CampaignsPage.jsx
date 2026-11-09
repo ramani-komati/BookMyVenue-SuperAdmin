@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { adminApi } from '../../services/adminApi.js'
 import { useAdmin } from '../../context/AdminContext.jsx'
@@ -10,9 +10,13 @@ import Icon from '../../components/ui/Icon.jsx'
 import { EmptyCard, hintStyle, linkBtn } from '../homepage/homepageUi.jsx'
 import CampaignEditor from './CampaignEditor.jsx'
 import CampaignReport from './CampaignReport.jsx'
-import { isActive, statusBadge } from './campaignModel.js'
+import { KIND_INFO, isActive, statusBadge } from './campaignModel.js'
 
 const n = (v) => (Number(v) || 0).toLocaleString('en-IN')
+// Campaigns from before the type split have no kind on old payloads: promotional.
+const kindLabel = (c) => (c.kind === 'service'
+  ? `${KIND_INFO.service.label}${c.serviceTopicLabel ? ` · ${c.serviceTopicLabel}` : ''}`
+  : KIND_INFO.promotional.label)
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
 
 /** What the server will actually do with a send — said plainly, up top. */
@@ -37,7 +41,7 @@ function DeliveryNotice({ delivery }) {
 function CampaignList({ campaigns, onOpen, onDuplicate }) {
   const { isMobile } = useViewport()
   if (campaigns.length === 0) {
-    return <EmptyCard title="No campaigns yet" body="Create one to email offers to customers who opted in. Nothing is sent until you confirm." />
+    return <EmptyCard title="No campaigns yet" body="Create a promotional campaign for customers who opted in to offers, or a service email (booking, payment or account notice) for registered customers. Nothing is sent until you confirm." />
   }
   if (isMobile) {
     return (
@@ -52,6 +56,7 @@ function CampaignList({ campaigns, onOpen, onDuplicate }) {
                 <Badge status={badge}>{label}</Badge>
               </div>
               <span style={hintStyle}>{c.subject || 'No subject yet'}</span>
+              <span style={{ ...hintStyle, fontWeight: 700 }}>{kindLabel(c)}</span>
               <span style={hintStyle}>{day(c.createdAt)} · {n(s.recipients)} recipients · {n(s.sent)} sent · {n((s.failed || 0) + (s.bounced || 0))} failed</span>
             </button>
           )
@@ -83,6 +88,7 @@ function CampaignList({ campaigns, onOpen, onDuplicate }) {
                 <td style={td}>
                   <button type="button" onClick={() => onOpen(c)} style={{ ...linkBtn, textAlign: 'left' }}>{c.name}</button>
                   <div style={{ ...hintStyle, maxWidth: 340 }}>{c.subject || 'No subject yet'}</div>
+                  <div style={{ ...hintStyle, fontWeight: 700 }}>{kindLabel(c)}</div>
                   {c.dryRun && <div style={{ ...hintStyle, color: 'var(--warning-600)' }}>Dry run</div>}
                 </td>
                 <td style={{ ...td, whiteSpace: 'nowrap' }}>{day(c.createdAt)}</td>
@@ -119,18 +125,45 @@ export default function CampaignsPage() {
   const [current, setCurrent] = useState({ status: 'idle', campaign: null })
   const [creating, setCreating] = useState(false)
 
+  // One list request at a time: a newer load (Retry, the 5 s refresh)
+  // cancels the one still in flight, and leaving the page cancels whatever
+  // is left — so a late answer can never overwrite fresher state, and a
+  // stuck request can never hold the page on "Loading campaigns…" (it
+  // times out into the error card with Retry; adminApi.request).
+  const listCall = useRef(null)
   const loadList = useCallback(async () => {
+    listCall.current?.abort()
+    const call = new AbortController()
+    listCall.current = call
     try {
-      const res = await adminApi.listCampaigns()
+      const res = await adminApi.listCampaigns({ signal: call.signal })
+      if (call.signal.aborted) return
       setList({ status: 'ready', campaigns: res.campaigns || [], delivery: res.delivery })
     } catch (err) {
+      if (err.aborted || call.signal.aborted) return
       setList((l) => ({ ...l, status: l.campaigns.length ? 'ready' : 'error', error: err.message }))
+    } finally {
+      if (listCall.current === call) listCall.current = null
     }
   }, [])
 
-  useEffect(() => { loadList() }, [loadList])
+  const retryList = useCallback(() => {
+    setList((l) => ({ ...l, status: l.campaigns.length ? 'ready' : 'loading' }))
+    loadList()
+  }, [loadList])
+
   useEffect(() => {
-    adminApi.campaignOptions().then(setOptions).catch(() => setOptions(null))
+    loadList()
+    return () => listCall.current?.abort()
+  }, [loadList])
+  // The editor's options (segments, places, limits) — asked AFTER the list
+  // has been requested, so the list never queues behind this heavier read.
+  useEffect(() => {
+    const call = new AbortController()
+    adminApi.campaignOptions({ signal: call.signal })
+      .then((res) => { if (!call.signal.aborted) setOptions(res) })
+      .catch(() => { if (!call.signal.aborted) setOptions(null) })
+    return () => call.abort()
   }, [])
 
   // While anything is sending, keep the history fresh.
@@ -143,12 +176,15 @@ export default function CampaignsPage() {
 
   useEffect(() => {
     if (!campaignId) { setCurrent({ status: 'idle', campaign: null }); return }
-    let live = true
+    const call = new AbortController()
     setCurrent({ status: 'loading', campaign: null })
-    adminApi.getCampaign(campaignId)
-      .then((res) => live && setCurrent({ status: 'ready', campaign: res.campaign }))
-      .catch((err) => live && setCurrent({ status: 'error', campaign: null, error: err.status === 404 ? 'This campaign no longer exists.' : err.message }))
-    return () => { live = false }
+    adminApi.getCampaign(campaignId, { signal: call.signal })
+      .then((res) => { if (!call.signal.aborted) setCurrent({ status: 'ready', campaign: res.campaign }) })
+      .catch((err) => {
+        if (err.aborted || call.signal.aborted) return
+        setCurrent({ status: 'error', campaign: null, error: err.status === 404 ? 'This campaign no longer exists.' : err.message })
+      })
+    return () => call.abort()
   }, [campaignId])
 
   const onChanged = useCallback((campaign) => {
@@ -204,7 +240,7 @@ export default function CampaignsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ ...hintStyle, maxWidth: 640 }}>
-          Promotional emails go only to customers who opted in, and every email carries an unsubscribe link. Sign-in codes and booking confirmations are separate and never affected.
+          <strong>Promotional</strong> emails (offers, discounts, sales) go only to customers who opted in, and every one carries an unsubscribe link. <strong>Service</strong> emails (booking, payment and account notices) go to registered customers without marketing consent and may not contain offers. Sign-in codes and booking confirmations are separate and never affected.
         </div>
         <Button variant="primary" size="sm" onClick={create} disabled={creating}>
           <Icon name="plus" size={18} /> {creating ? 'Creating…' : 'New campaign'}
@@ -212,7 +248,7 @@ export default function CampaignsPage() {
       </div>
       <DeliveryNotice delivery={delivery} />
       {list.status === 'loading' && <div className="card" style={{ padding: 28, color: 'var(--text-muted)' }}>Loading campaigns…</div>}
-      {list.status === 'error' && <DataErrorCard onRetry={loadList} />}
+      {list.status === 'error' && <DataErrorCard onRetry={retryList} />}
       {list.status === 'ready' && (
         <CampaignList campaigns={list.campaigns} onOpen={(c) => navigate(`/campaigns/${c.id}`)} onDuplicate={duplicate} />
       )}

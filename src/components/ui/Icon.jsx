@@ -5,6 +5,7 @@
   ChevronLeft, Lock, MapPin, Pencil, Sparkles,
   Mail, Send,
   Tag,
+  CreditCard, RotateCcw,
 } from 'lucide-react'
 
 const ICONS = {
@@ -49,6 +50,9 @@ const ICONS = {
   'send': Send,
   // Sub-categories
   'tag': Tag,
+  // Dashboard money cards
+  'credit-card': CreditCard,
+  'rotate-ccw': RotateCcw,
 }
 
 export default function Icon({ name, size = 20, ...rest }) {

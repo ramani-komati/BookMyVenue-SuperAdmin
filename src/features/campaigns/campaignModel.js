@@ -20,6 +20,59 @@ export const isActive = (status) => status === 'queued' || status === 'sending'
 
 export const LIMITS = { name: 120, subject: 150, previewText: 200, heading: 150, body: 5000, ctaLabel: 40, ctaUrl: 500, images: 6 }
 
+// Campaign types. The server decides who can receive each (campaigns/
+// audience.py); these texts explain it in the panel.
+export const KIND_INFO = {
+  promotional: {
+    label: 'Promotional',
+    examples: 'Offers, discounts, sales, coupons and other marketing.',
+    who: 'Only customers who turned on promotional emails themselves (My account → Email preferences). Anyone who never opted in or unsubscribed is left out — consent is never assumed or changed for them.',
+  },
+  service: {
+    label: 'Service / Transactional',
+    examples: 'Booking updates, payment notifications, account notices and service announcements.',
+    who: 'Registered customers with a working email address. No marketing consent is needed because this is not marketing — but addresses that bounced or reported spam, and deactivated accounts, are still left out, and offers, discounts or coupons are not allowed.',
+  },
+}
+export const KINDS = Object.keys(KIND_INFO)
+
+// Fallback when the options call has not answered yet (server: Campaign.ServiceTopic).
+export const SERVICE_TOPICS = [
+  { key: 'booking_update', label: 'Booking update' },
+  { key: 'payment', label: 'Payment notification' },
+  { key: 'account', label: 'Account notice' },
+  { key: 'service_announcement', label: 'Service announcement' },
+  { key: 'policy', label: 'Policy or terms update' },
+]
+
+// Who a service notice can be about; the other segments are marketing
+// (re-engagement, interests) — server: audience.SERVICE_SEGMENTS.
+export const SERVICE_SEGMENTS = ['all', 'location', 'booked', 'category', 'event_buyers', 'active']
+export const segmentAllowed = (kind, segment) => kind !== 'service' || SERVICE_SEGMENTS.includes(segment || 'all')
+
+/** The form switched to another kind; a marketing-only segment resets to "all". */
+export function withKind(form, kind) {
+  const audience = segmentAllowed(kind, form.audience?.segment) ? form.audience : { segment: 'all' }
+  return { ...form, kind, audience, serviceTopic: kind === 'service' ? form.serviceTopic || '' : '' }
+}
+
+// Mirrors content._PROMO_PATTERN — offer wording a service email may not carry.
+const PROMO_WORDS = /(\d+\s*%\s*off\b|\bdiscount(s|ed)?\b|\bcoupons?\b|\bpromo(tion|tions|tional)?\b|\bpromo\s*codes?\b|\bcashback\b|\boffers?\b|\bdeals?\b|\bsale\b|\bflash\b|\blimited[-\s]time\b|\bsave\s+(up\s+to\s+)?(₹|rs\.?\s*|inr\s*)?\d)/gi
+
+/** Offer words found in the form's text, lower-case, unique, in reading order. */
+export function promotionalWords(form) {
+  const texts = [form.subject, form.previewText, form.heading, form.body, form.ctaLabel,
+    ...(form.images || []).flatMap((img) => [img.alt, img.caption])]
+  const found = []
+  for (const text of texts) {
+    for (const m of String(text || '').matchAll(PROMO_WORDS)) {
+      const word = m[0].trim().toLowerCase()
+      if (!found.includes(word)) found.push(word)
+    }
+  }
+  return found
+}
+
 export const SEGMENT_HELP = {
   all: 'Every customer who opted in to promotional email.',
   location: 'Customers who booked a venue in this state (and city). Customer location is only known from their bookings.',
@@ -33,6 +86,15 @@ export const SEGMENT_HELP = {
   interest_city: 'Customers who booked, saved a venue or bought event tickets in these cities.',
 }
 
+const SERVICE_SEGMENT_HELP = {
+  all: 'Every registered customer with a working email address.',
+  location: 'Customers who booked a venue in this state (and city) — e.g. a local service notice.',
+  booked: 'Customers with at least one confirmed venue booking.',
+}
+
+export const segmentHelp = (kind, segment) =>
+  (kind === 'service' && SERVICE_SEGMENT_HELP[segment]) || SEGMENT_HELP[segment]
+
 // Segments whose "within N days" box applies.
 export const DAY_SEGMENTS = ['booked', 'lapsed', 'active']
 
@@ -40,6 +102,7 @@ export function blankForm() {
   return {
     name: '', subject: '', previewText: '', heading: '', body: '',
     images: [], ctaLabel: '', ctaUrl: '', audience: { segment: 'all' },
+    kind: 'promotional', serviceTopic: '',
   }
 }
 
@@ -51,6 +114,8 @@ export function formFromCampaign(c) {
     images: (c.images || []).map((img) => ({ url: img.url || '', alt: img.alt || '', link: img.link || '', caption: img.caption || '' })),
     ctaLabel: c.ctaLabel || '', ctaUrl: c.ctaUrl || '',
     audience: { segment: 'all', ...(c.audience || {}) },
+    kind: c.kind === 'service' ? 'service' : 'promotional',
+    serviceTopic: c.kind === 'service' ? c.serviceTopic || '' : '',
   }
 }
 
@@ -71,7 +136,8 @@ export function cleanAudience(a = {}) {
   return out
 }
 
-export function audienceProblem(a = {}) {
+export function audienceProblem(a = {}, kind = 'promotional') {
+  if (!segmentAllowed(kind, a.segment)) return 'This audience is for promotional campaigns only. Choose all customers or customers with a booking or ticket.'
   if (a.segment === 'location' && !a.state) return 'Choose a state.'
   if (a.segment === 'category' && !a.category) return 'Choose a venue category.'
   if (a.segment === 'interest_category' && !(a.categories || []).filter(Boolean).length) return 'Choose at least one category.'
@@ -92,6 +158,8 @@ export function toPayload(form) {
     })),
     ctaLabel: form.ctaLabel.trim(), ctaUrl: form.ctaUrl.trim(),
     audience: cleanAudience(form.audience),
+    kind: form.kind === 'service' ? 'service' : 'promotional',
+    serviceTopic: form.kind === 'service' ? form.serviceTopic || '' : '',
   }
 }
 
@@ -117,8 +185,15 @@ export function sendProblems(form) {
     if (key === 'images') continue
     if ((form[key] || '').length > max) p[key] = `Keep this under ${max} characters.`
   }
-  const audience = audienceProblem(form.audience)
+  const audience = audienceProblem(form.audience, form.kind)
   if (audience) p.audience = audience
+  if (form.kind === 'service') {
+    if (!form.serviceTopic) p.serviceTopic = 'Choose what this service email is about.'
+    const words = promotionalWords(form)
+    if (words.length) {
+      p.kind = `This reads like a promotion (${words.slice(0, 3).map((w) => `“${w}”`).join(', ')}). Service emails cannot carry offers or marketing — remove that wording, or switch the type to Promotional so only opted-in customers receive it.`
+    }
+  }
   return p
 }
 
@@ -148,10 +223,14 @@ export const needsAllConfirm = (audience) => (audience?.segment || 'all') === 'a
  * Why an audience reaches nobody — from the server's estimate breakdown, in
  * the order an admin can act on. '' when the audience is not empty.
  */
-export function emptyAudienceReason(est = {}) {
+export function emptyAudienceReason(est = {}, kind = 'promotional') {
   if (!est || Number(est.count) > 0) return ''
   if (!Number(est.customers)) return 'There are no customer accounts yet.'
   if (!Number(est.withEmail)) return 'No customer has added an email address to their account yet.'
+  if (kind === 'service') {
+    if (!Number(est.eligibleTotal)) return 'Every customer address has bounced, been reported as spam, or is invalid.'
+    return 'Registered customers exist, but none of them match this audience. Try a wider audience.'
+  }
   if (!Number(est.optedIn)) return 'No customer has opted in to promotional emails yet. Customers turn this on under My account → Email preferences; nobody is ever added without their consent.'
   if (!Number(est.eligibleTotal)) return 'Every opted-in address has bounced, been reported as spam, or is invalid.'
   return 'Opted-in customers exist, but none of them match this audience. Try a wider audience.'

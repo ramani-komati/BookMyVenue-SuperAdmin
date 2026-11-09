@@ -199,13 +199,13 @@ export default function AdminLayout() {
         <aside className="admin-sidebar" style={{ width: isNarrow ? 68 : 250, flex: '0 0 auto', background: 'var(--sidebar-bg)', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '20px 12px 16px', gap: 2, transition: 'width .2s ease' }}>
           <button
             onClick={() => navigate('/')}
-            title="TheBookMyVenues home"
+            title="HAPVOO home"
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 0 20px', minHeight: 48, background: 'none', border: 'none', cursor: 'pointer' }}
           >
             {isNarrow ? (
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 800, color: '#fff' }}>B<span style={{ color: 'var(--red-500)' }}>M</span>V</div>
+              <img src="/apple-touch-icon.png" alt="HAPVOO" width={36} height={36} style={{ display: 'block', borderRadius: 8 }} />
             ) : (
-              <img src="/assets/logo-sidenav.svg" alt="TheBookMyVenues" style={{ height: 60, width: 'auto', maxWidth: '100%', objectFit: 'contain' }} />
+              <img src="/assets/logo-sidenav.svg" alt="HAPVOO" style={{ height: 60, width: 'auto', maxWidth: '100%', objectFit: 'contain' }} />
             )}
           </button>
 
@@ -235,7 +235,7 @@ export default function AdminLayout() {
           <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(6,21,44,.5)', zIndex: 50 }} />
           <aside className="admin-sidebar" style={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: 264, maxWidth: '85vw', background: 'var(--sidebar-bg)', zIndex: 51, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '18px 12px 16px', gap: 2, boxShadow: 'var(--shadow-xl)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 16px' }}>
-              <img src="/assets/logo-sidenav.svg" alt="TheBookMyVenues" style={{ height: 48, width: 'auto', objectFit: 'contain' }} />
+              <img src="/assets/logo-sidenav.svg" alt="HAPVOO" style={{ height: 48, width: 'auto', objectFit: 'contain' }} />
               <button onClick={() => setNavOpen(false)} aria-label="Close menu" style={{ width: 38, height: 38, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,.1)', color: '#fff', cursor: 'pointer', fontSize: 17, fontWeight: 800, flex: '0 0 auto' }}>×</button>
             </div>
             {navList(false)}
@@ -298,11 +298,25 @@ export default function AdminLayout() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: isMobile ? 22 : 27, fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '-0.01em' }}>{pageTitle}</div>
           </div>
-          {loading || dataStatus === 'loading' || dataStatus === 'idle'
+          {dataStatus === 'loading' || dataStatus === 'idle'
             ? <LoadingSkeleton />
             : dataStatus === 'error'
               ? <DataErrorCard onRetry={retryLoad} />
-              : <Outlet />}
+              : (
+                // The short shimmer between sections is drawn OVER the page,
+                // never instead of it: swapping <Outlet /> out unmounted the
+                // page right after it had started loading and mounted a fresh
+                // copy 420 ms later — every section fetched its data twice,
+                // and on the single-worker production server Email Campaigns
+                // queued its list behind its own duplicate requests and sat
+                // on "Loading campaigns…".
+                <>
+                  {loading && <LoadingSkeleton />}
+                  <div style={loading ? { display: 'none' } : { display: 'contents' }}>
+                    <Outlet />
+                  </div>
+                </>
+              )}
         </main>
       </div>
 

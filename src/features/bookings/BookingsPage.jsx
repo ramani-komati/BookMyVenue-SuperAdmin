@@ -9,7 +9,7 @@ import Badge from '../../components/ui/Badge.jsx'
 import Button from '../../components/ui/Button.jsx'
 import ExportButton from '../../components/ui/ExportButton.jsx'
 import { NOT_AVAILABLE, adminBookingInfo } from './bookingInfo.js'
-import { DATE_BASIS_OPTIONS, KIND_LABEL, STATUS_OPTIONS, countByKind, deletePrompt, exportFilename, exportParams, filterBookings, stateBadges, unifyBookings } from './unifiedBookings.js'
+import { DATE_BASIS_OPTIONS, KIND_LABEL, STATUS_OPTIONS, canResendTickets, countByKind, deletePrompt, resendPrompt, exportFilename, exportParams, filterBookings, stateBadges, unifyBookings } from './unifiedBookings.js'
 
 const selectStyle = {
   fontFamily: 'var(--font-body)', fontSize: 15.5, fontWeight: 600, color: 'var(--text-heading)',
@@ -92,7 +92,7 @@ function BookingRecord({ row, compact, references = true }) {
 
 // Expanded panel for an event ticket order: tickets, fee, payment record and
 // the (server-guarded) delete action.
-function EventOrderDetails({ o, compact, onDelete }) {
+function EventOrderDetails({ o, compact, onDelete, onResend }) {
   const line = { display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: compact ? 15 : 16 }
   const strong = { fontWeight: 700, color: 'var(--text-heading)' }
   return (
@@ -125,6 +125,9 @@ function EventOrderDetails({ o, compact, onDelete }) {
         <BookingRecord row={o} compact={compact} references={false} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: compact ? 'none' : 220 }}>
+        {canResendTickets(o) && onResend && (
+          <Button variant="secondary" size="sm" block={compact} onClick={() => onResend(o)}>Resend PDF tickets</Button>
+        )}
         <DeleteAction row={o} compact={compact} onDelete={onDelete} />
       </div>
     </div>
@@ -222,6 +225,23 @@ export default function BookingsPage() {
           err.status === 401 || err.status === 403
             ? 'Your admin session has expired. Sign in again to delete bookings.'
             : `Could not delete ${ref}: ${err.message || 'request failed'}`,
+        ))
+    },
+  })
+
+  // Email the customer their PDF tickets again (paid orders only). The
+  // server checks payment, applies a 10-minute cooldown and audits it.
+  const confirmResend = (row) => openModal({
+    ...resendPrompt(row),
+    confirmLabel: 'Resend tickets',
+    onConfirm: () => {
+      const ref = displayRef(row)
+      adminApi.resendEventTickets(row.id)
+        .then(() => showToast(`Tickets for ${ref} sent to the customer again`))
+        .catch((err) => showToast(
+          err.status === 401 || err.status === 403
+            ? 'Your admin session has expired. Sign in again to resend tickets.'
+            : `Could not resend tickets for ${ref}: ${err.message || 'request failed'}`,
         ))
     },
   })
@@ -334,7 +354,7 @@ export default function BookingsPage() {
                       <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-muted)' }}>{expanded ? 'Hide details ▲' : 'View details ▼'}</span>
                     </div>
                   </div>
-                  {expanded && <EventOrderDetails o={b} compact onDelete={confirmDelete} />}
+                  {expanded && <EventOrderDetails o={b} compact onDelete={confirmDelete} onResend={confirmResend} />}
                 </div>
               )
             }
@@ -433,7 +453,7 @@ export default function BookingsPage() {
                   <div style={{ fontSize: 15, color: 'var(--text-muted)' }}>{methodLabel(b.method)}</div>
                   <div><StateBadges sb={sb} /></div>
                 </div>
-                {expanded && <EventOrderDetails o={b} onDelete={confirmDelete} />}
+                {expanded && <EventOrderDetails o={b} onDelete={confirmDelete} onResend={confirmResend} />}
               </div>
             )
           }

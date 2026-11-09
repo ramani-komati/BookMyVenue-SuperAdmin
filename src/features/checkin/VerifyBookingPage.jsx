@@ -28,6 +28,8 @@ const VERDICT = {
   INELIGIBLE: ['error', 'Not eligible'],
   INVALID_ID: ['neutral', 'Not found'],
   SHORT_REF: ['warning', 'Full ID needed'],
+  // A scanned PDF-ticket QR whose verification code does not match.
+  TICKET_NOT_GENUINE: ['error', 'Ticket not genuine'],
 }
 
 const STATUS_TONE = {
@@ -94,6 +96,12 @@ function Result({ data }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
           <Group title="Booking">
             <Row label="Booking ID"><code style={{ fontFamily: 'var(--font-mono)' }}>{b.id}</code></Row>
+            {b.ticket && (
+              <Row label="Ticket shown">
+                <code style={{ fontFamily: 'var(--font-mono)' }}>{b.ticket.ticketId}</code>
+                {` · ticket ${b.ticket.number}${b.ticket.of ? ` of ${b.ticket.of}` : ''}${b.ticket.type ? ` (${b.ticket.type})` : ''}`}
+              </Row>
+            )}
             <Row label="Type">{b.kind === 'event' ? 'Event ticket order' : 'Venue booking'}</Row>
             <Row label="Status">
               <Badge status={STATUS_TONE[b.status] || 'neutral'}>{b.status}</Badge>
@@ -192,7 +200,7 @@ export default function VerifyBookingPage() {
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-heading)' }}>Look up a booking ID</div>
             <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>
-              The 6-character Booking ID of any venue booking or event ticket, across all venues. Read-only.
+              The 6-character Booking ID of any venue booking or event ticket, across all venues — or scan / paste the QR code from a PDF event ticket. Read-only.
             </div>
           </div>
         </div>
@@ -200,8 +208,8 @@ export default function VerifyBookingPage() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="e.g. K7M2QX"
-            aria-label="Booking ID"
+            placeholder="e.g. K7M2QX or a ticket QR"
+            aria-label="Booking ID or ticket QR"
             maxLength={40}
             autoComplete="off"
             spellCheck={false}

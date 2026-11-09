@@ -3,8 +3,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  blankForm, cleanAudience, formFromCampaign, isActive, moveImage, needsAllConfirm, rate,
-  sameForm, sendProblems, statusBadge, toPayload,
+  blankForm, cleanAudience, emptyAudienceReason, formFromCampaign, isActive, moveImage, needsAllConfirm,
+  promotionalWords, rate, sameForm, segmentAllowed, sendProblems, statusBadge, toPayload, withKind,
 } from './campaignModel.js'
 
 const ready = () => ({
@@ -34,7 +34,7 @@ test('a button needs both text and an https or site link', () => {
   assert.ok(sendProblems({ ...ready(), ctaLabel: '' }).ctaLabel)
   assert.ok(sendProblems({ ...ready(), ctaUrl: 'http://x.com' }).ctaUrl)
   assert.ok(sendProblems({ ...ready(), ctaUrl: '//evil.com' }).ctaUrl)
-  assert.equal(sendProblems({ ...ready(), ctaUrl: 'https://thebookmyvenues.in/x' }).ctaUrl, undefined)
+  assert.equal(sendProblems({ ...ready(), ctaUrl: 'https://hapvoo.com/x' }).ctaUrl, undefined)
 })
 
 test('audience is cleaned to what the server stores', () => {
@@ -85,4 +85,48 @@ test('interest audiences keep their choices and need at least one', async () => 
   assert.match(emptyAudienceReason({ count: 0, customers: 5, withEmail: 5, optedIn: 0 }), /opted in/)
   assert.match(emptyAudienceReason({ count: 0, customers: 5, withEmail: 5, optedIn: 2, eligibleTotal: 2 }), /none of them match/)
   assert.match(emptyAudienceReason({ count: 0, customers: 0 }), /no customer accounts/)
+})
+
+// ---- Campaign types: promotional vs service (2026-11-03) ----
+
+test('new and old campaigns are promotional unless the server says service', () => {
+  assert.equal(blankForm().kind, 'promotional')
+  assert.equal(formFromCampaign({ name: 'Old' }).kind, 'promotional')
+  const svc = formFromCampaign({ name: 'Notice', kind: 'service', serviceTopic: 'payment' })
+  assert.equal(svc.kind, 'service')
+  assert.equal(toPayload(svc).serviceTopic, 'payment')
+  assert.equal(toPayload({ ...svc, kind: 'promotional' }).serviceTopic, '')
+})
+
+test('switching to service resets a marketing-only audience', () => {
+  const form = { ...ready(), audience: { segment: 'lapsed', days: 90 } }
+  assert.deepEqual(withKind(form, 'service').audience, { segment: 'all' })
+  const booked = { ...ready(), audience: { segment: 'booked' } }
+  assert.deepEqual(withKind(booked, 'service').audience, { segment: 'booked' })
+  assert.equal(segmentAllowed('service', 'interest_city'), false)
+  assert.equal(segmentAllowed('promotional', 'interest_city'), true)
+})
+
+test('a service email needs a topic and may not carry offers', () => {
+  const svc = { ...ready(), kind: 'service', serviceTopic: '', subject: 'Maintenance on Sunday' }
+  assert.ok(sendProblems(svc).serviceTopic)
+  svc.serviceTopic = 'service_announcement'
+  assert.deepEqual(sendProblems(svc), {})
+  for (const text of ['Get 20% off', 'Use coupon X', 'Big sale', 'New offers', 'Save ₹500']) {
+    assert.ok(sendProblems({ ...svc, body: text }).kind, text)
+  }
+  assert.deepEqual(promotionalWords({ ...svc, subject: 'Deals and discounts' }), ['deals', 'discounts'])
+  // The same words are fine in a promotional campaign.
+  assert.equal(sendProblems({ ...ready(), body: 'Get 20% off' }).kind, undefined)
+})
+
+test('a service email cannot target a marketing segment', () => {
+  const svc = { ...ready(), kind: 'service', serviceTopic: 'account', audience: { segment: 'not_booked' } }
+  assert.match(sendProblems(svc).audience, /promotional campaigns only/)
+})
+
+test('empty-audience reasons follow the campaign type', () => {
+  const est = { count: 0, customers: 5, withEmail: 5, optedIn: 0, eligibleTotal: 5 }
+  assert.match(emptyAudienceReason(est), /opted in/)
+  assert.match(emptyAudienceReason(est, 'service'), /none of them match/)
 })
