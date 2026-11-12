@@ -6,7 +6,7 @@ import Button from '../../components/ui/Button.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 import { lockBodyScroll, unlockBodyScroll } from '../../utils/scrollLock.js'
 import BannerPreview from './BannerPreview.jsx'
-import { bannerFormError, checkImage } from './bannerSpec.js'
+import { bannerFormError, bannerLink, bannerName, checkImage, linkLabel } from './bannerSpec.js'
 import { Check, Field, hintStyle, inputStyle, linkBtn, sectionTitle, textareaStyle } from './homepageUi.jsx'
 
 const toForm = (b, placement) => ({
@@ -27,15 +27,15 @@ const toForm = (b, placement) => ({
   imageHeight: b?.imageHeight || 0,
   imageMobileWidth: b?.imageMobileWidth || 0,
   imageMobileHeight: b?.imageMobileHeight || 0,
-  // Which part of the art stays in view when words are drawn over it and a
-  // frame must crop it (backend IMAGE_POSITIONS). Image-only banners show
-  // the whole artwork, except on phones without a phone image (2:1 crop).
+  // Kept as stored. The customer site now always shows a banner image whole
+  // with nothing over it, so neither is edited any more.
   imagePosition: b?.imagePosition || 'center',
   imageMobilePosition: b?.imageMobilePosition || b?.imagePosition || 'center',
-  // New banners are image-led: the art carries the message, words optional.
   showText: b ? b.showText !== false : false,
   showCode: b ? b.showCode !== false : true,
-  ctaLabel: b ? (b.ctaLabel ?? 'Explore venues') : 'Explore venues',
+  // A new HERO banner has no button (the picture itself is the link); a new
+  // promotion card keeps the old default label.
+  ctaLabel: b ? (b.ctaLabel ?? 'Explore venues') : placement === 'hero' ? '' : 'Explore venues',
   ctaUrl: b?.ctaUrl || '',
   category: b?.category || '',
   terms: b?.terms || '',
@@ -45,10 +45,6 @@ const toForm = (b, placement) => ({
 })
 
 const DISCOUNT = ['percent', 'flat']
-
-const FOCUS_OPTIONS = [
-  ['center', 'Centre'], ['left', 'Left side'], ['right', 'Right side'], ['top', 'Top'], ['bottom', 'Bottom'],
-]
 
 const toPayload = (form) => {
   const discount = DISCOUNT.includes(form.type)
@@ -227,7 +223,7 @@ export default function BannerEditor({ spec, categories, banner, placement, othe
       const res = banner
         ? await adminApi.updateBanner(banner.id, { ...payload, expectedUpdatedAt: banner.updatedAt || '' })
         : await adminApi.createBanner(payload)
-      showToast(published ? `“${payload.title}” is published` : `“${payload.title}” saved as a draft`)
+      showToast(published ? `“${bannerName(payload)}” is published` : `“${bannerName(payload)}” saved as a draft`)
       onSaved(res.homepage)
       onClose()
     } catch (err) {
@@ -239,13 +235,19 @@ export default function BannerEditor({ spec, categories, banner, placement, othe
   }
 
   const discount = DISCOUNT.includes(form.type)
+  // Hero banners are the uploaded image ONLY: no title, details, offer or
+  // button — just the artwork, an optional link and its schedule. The words
+  // and offer of a banner that is ALSO a promotion are kept untouched and
+  // edited from the Featured promotions tab.
+  const heroEditor = placement === 'hero'
+  const link = bannerLink(form.ctaUrl)
   const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(200px,100%),1fr))', gap: 12 }
 
   return (
     <div role="dialog" aria-modal="true" aria-label={banner ? 'Edit banner' : 'New banner'} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(6,21,44,.5)', overflowY: 'auto', padding: isMobile ? 0 : '32px 24px' }}>
       <div style={{ background: 'var(--surface-page, #fff)', borderRadius: isMobile ? 0 : 18, maxWidth: 1180, margin: '0 auto', boxShadow: 'var(--shadow-lg)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 22px', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, background: 'inherit', zIndex: 1, borderRadius: isMobile ? 0 : '18px 18px 0 0' }}>
-          <div style={{ ...sectionTitle, flex: 1 }}>{banner ? `Edit “${banner.title}”` : placement === 'promotions' ? 'New promotion' : 'New hero banner'}</div>
+          <div style={{ ...sectionTitle, flex: 1 }}>{banner ? `Edit “${bannerName(banner)}”` : placement === 'promotions' ? 'New promotion' : 'New hero banner'}</div>
           <button type="button" onClick={close} aria-label="Close" style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: 'var(--neutral-100)', cursor: 'pointer', fontSize: 18, fontWeight: 800 }}>×</button>
         </div>
 
@@ -261,47 +263,41 @@ export default function BannerEditor({ spec, categories, banner, placement, othe
               {form.image && !discount && (
                 <div role="note" style={{ ...hintStyle, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--warning-600, #d97706)', background: 'var(--warning-50, #fffbeb)', color: 'var(--text-heading, #0f172a)' }}>
                   This banner has no coupon attached. Make sure the artwork doesn’t advertise a discount or offer —
-                  customers can only redeem a “% off” or “₹ off” banner’s code at checkout.
+                  customers can only redeem {heroEditor ? 'a code set up under Featured promotions' : 'a “% off” or “₹ off” banner’s code'} at checkout.
                 </div>
               )}
               {form.image && <ImageSlot spec={spec} slot="mobile" form={form} set={set} busy={busyImage} setBusy={setBusyImage} />}
-              {form.image && (
-                <div style={grid}>
-                  <Field label="Keep in view — desktop & tablet" hint="Only used when the title is shown over the image. Image-only banners show the whole artwork on desktop and tablet.">
-                    <select className="bmva" style={{ ...inputStyle, cursor: 'pointer' }} value={form.imagePosition} onChange={(e) => set({ imagePosition: e.target.value })}>
-                      {FOCUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Keep in view — phones" hint={form.imageMobile ? 'Applies to the phone image.' : 'No phone image: phones crop the desktop image to 2:1 (an image-only banner from the left unless you pick a side). Upload a phone image to show the whole message.'}>
-                    <select className="bmva" style={{ ...inputStyle, cursor: 'pointer' }} value={form.imageMobilePosition} onChange={(e) => set({ imageMobilePosition: e.target.value })}>
-                      {FOCUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                    </select>
-                  </Field>
+              {form.image && !form.imageMobile && (
+                <div style={hintStyle}>
+                  No phone image: phones show the desktop image scaled down whole (see the Phone preview). Upload a phone image if its words get too small there.
                 </div>
               )}
-              <Field label="Image description (for screen readers)" hint="Say what the banner says — e.g. “Diwali offer: 20% off private theatres”. Defaults to the title.">
+              <Field label="Image description (for screen readers)" hint={`Say what the banner says — e.g. “Diwali offer: 20% off private theatres”. ${heroEditor ? 'Optional. ' : ''}Defaults to the title.`}>
                 <input className="bmva" style={inputStyle} value={form.imageAlt} maxLength={200} onChange={(e) => set({ imageAlt: e.target.value })} />
               </Field>
             </section>
 
-            {/* 2. Words */}
+            {/* 2. Words — Featured promotions cards only; a hero banner is
+                its image alone. */}
+            {!heroEditor && (
             <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={sectionTitle}>Title &amp; text</div>
-              <Field label="Title (required)" hint="Used in the admin list, as the image description, and over the image if you show text.">
+              <Field label="Title (required)" hint="Printed on the Featured promotions card and used in the admin list. Never drawn over a hero image.">
                 <input className="bmva" style={inputStyle} value={form.title} maxLength={120} onChange={(e) => set({ title: e.target.value })} />
               </Field>
               <Field label="Details (optional)">
                 <input className="bmva" style={inputStyle} value={form.text} maxLength={240} onChange={(e) => set({ text: e.target.value })} />
               </Field>
-              <Check
-                checked={form.showText}
-                onChange={(v) => set({ showText: v })}
-                label="Show the title and details over the image"
-                hint="Leave off when the words are already part of your artwork."
-              />
             </section>
+            )}
 
-            {/* 3. Offer */}
+            {/* 3. Offer — Featured promotions only (hero banners are image-led). */}
+            {heroEditor && (discount || form.type === 'complimentary') && (
+              <div style={hintStyle}>
+                This banner also carries an offer{form.code ? ` (code ${form.code})` : ''}. It is kept as is — edit it from the Featured promotions tab.
+              </div>
+            )}
+            {!heroEditor && (
             <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={sectionTitle}>Offer</div>
               {redeemed && (
@@ -340,15 +336,22 @@ export default function BannerEditor({ spec, categories, banner, placement, othe
                   </>
                 )}
               </div>
-              {discount && (
-                <Check checked={form.showCode} onChange={(v) => set({ showCode: v })} label="Show the code on the banner" />
-              )}
               <Field label="Terms (optional)" hint="Shown on the Featured promotions card.">
                 <textarea className="bmva" style={textareaStyle} value={form.terms} maxLength={600} onChange={(e) => set({ terms: e.target.value })} />
               </Field>
             </section>
+            )}
 
-            {/* 4. Button */}
+            {/* 4. Link (hero) / Button (promotion card) */}
+            {heroEditor ? (
+            <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={sectionTitle}>Link (optional)</div>
+              <Field label="When a customer taps the banner, open…" hint="A page on this site such as /events, /venues or /home?category=sports, or a full https:// address (opens in a new tab). Leave blank and the banner is just the picture — not clickable.">
+                <input className="bmva" style={inputStyle} placeholder="/events" value={form.ctaUrl} maxLength={500} onChange={(e) => set({ ctaUrl: e.target.value })} />
+              </Field>
+              <div style={{ ...hintStyle, fontWeight: 600, color: link ? 'var(--text-heading)' : 'var(--error-600)' }}>{linkLabel(form.ctaUrl)}</div>
+            </section>
+            ) : (
             <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={sectionTitle}>Button &amp; destination</div>
               <div style={grid}>
@@ -362,16 +365,19 @@ export default function BannerEditor({ spec, categories, banner, placement, othe
                   </select>
                 </Field>
               </div>
-              <Field label="Link (optional)" hint="A page on this site such as /events, or a full https:// address. Blank = the category above, or the venue list.">
+              <Field label="Link (optional)" hint="A page on this site such as /events, or a full https:// address. Blank = the category above, or the venue list. In the hero, only this link is used (blank = not clickable).">
                 <input className="bmva" style={inputStyle} placeholder="/events" value={form.ctaUrl} onChange={(e) => set({ ctaUrl: e.target.value })} />
               </Field>
             </section>
+            )}
 
             {/* 5. Where and when */}
             <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={sectionTitle}>Where &amp; when</div>
               <Check checked={form.showInHero} onChange={(v) => set({ showInHero: v })} label="Show in the hero banner" hint="Needs an image." />
-              <Check checked={form.featuredPromotion} onChange={(v) => set({ featuredPromotion: v })} label="Show in Featured promotions" hint="Discounts need a code to appear there." />
+              {!heroEditor && (
+                <Check checked={form.featuredPromotion} onChange={(v) => set({ featuredPromotion: v })} label="Show in Featured promotions" hint="Needs a title; discounts also need a code to appear there." />
+              )}
               <div style={grid}>
                 <Field label="Valid from (optional)">
                   <input className="bmva" type="date" style={inputStyle} value={form.from} onChange={(e) => set({ from: e.target.value })} />
@@ -381,7 +387,9 @@ export default function BannerEditor({ spec, categories, banner, placement, othe
                 </Field>
               </div>
               <div style={hintStyle}>
-                The dates control both when it shows and when its code works at checkout. Unpublishing hides it from the homepage only — the code keeps working until “Valid to”.
+                {heroEditor && !form.code
+                  ? 'The dates control when it shows. Unpublishing hides it from the homepage.'
+                  : 'The dates control both when it shows and when its code works at checkout. Unpublishing hides it from the homepage only — the code keeps working until “Valid to”.'}
               </div>
             </section>
           </div>
@@ -389,7 +397,7 @@ export default function BannerEditor({ spec, categories, banner, placement, othe
           {/* Live preview */}
           <aside style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
             <div style={sectionTitle}>Preview</div>
-            <div style={hintStyle}>Exactly how each screen size crops the banner. Nothing is public until you publish.</div>
+            <div style={hintStyle}>Exactly what each screen size shows: the whole image across the banner width, at its own shape — never stretched or cropped. Nothing is public until you publish.</div>
             {form.showInHero ? (
               <BannerPreview spec={spec} form={form} />
             ) : (

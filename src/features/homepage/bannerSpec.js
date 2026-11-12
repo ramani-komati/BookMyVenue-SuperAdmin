@@ -57,14 +57,14 @@ export function checkImage(spec, slot, { width, height, bytes, type }) {
   const r = width / height
   if (r < ratio.min || r > ratio.max) {
     return {
-      problem: `This image is ${r.toFixed(2)}:1 — too far from the banner’s ${ratio.label} shape; most of it would be cut off. Crop it to about ${pxs(recommended)}.`,
+      problem: `This image is ${r.toFixed(2)}:1 — too far from the banner’s ${ratio.label} shape; shown whole it would be far too tall or too thin. Crop it to about ${pxs(recommended)}.`,
       warnings: [],
     }
   }
   const warnings = []
   const name = slot === 'mobile' ? 'phone image' : 'banner image'
   if (r < ratio.warnMin || r > ratio.warnMax) {
-    warnings.push(`The ${name} is ${width}×${height} (${r.toFixed(2)}:1); banners are designed for ${ratio.label}, so more of it will be trimmed.`)
+    warnings.push(`The ${name} is ${width}×${height} (${r.toFixed(2)}:1); banners are designed for ${ratio.label}. It still shows whole, at its own shape, so it will be ${r < ratio.value ? 'taller' : 'shorter'} than ${ratio.label} banners in the rotation.`)
   }
   if (width < sharpFrom.width || height < sharpFrom.height) {
     warnings.push(`The ${name} is ${width}×${height}; at least ${pxs(sharpFrom)} looks sharp on large and high-resolution screens.`)
@@ -75,11 +75,50 @@ export function checkImage(spec, slot, { width, height, bytes, type }) {
 const DISCOUNT_TYPES = ['percent', 'flat']
 const CODE_RE = /^[A-Z0-9]{1,30}$/
 
-const safeLink = (url) => {
+/**
+ * Where a banner's link goes, or null when it is not a usable link:
+ *   { type: 'internal', to }   a page on the customer site ('/events', '/venues')
+ *   { type: 'external', href } a full http(s) address with a real host
+ * '' → { type: 'none' } (the banner is not clickable). Mirrors the customer
+ * site's homeLayout heroLink and the server's check.
+ */
+export function bannerLink(url) {
   const text = String(url || '').trim()
-  if (!text) return true
-  if (/^https?:\/\//i.test(text)) return true
-  return text.startsWith('/') && !text.startsWith('//')
+  if (!text) return { type: 'none' }
+  if (text.startsWith('/') && !text.startsWith('//') && !text.includes('\\') && !/\s/.test(text)) {
+    return { type: 'internal', to: text }
+  }
+  if (!/^https?:\/\//i.test(text)) return null
+  try {
+    const parsed = new URL(text)
+    if (!parsed.hostname.includes('.') && parsed.hostname !== 'localhost') return null
+    return { type: 'external', href: parsed.href }
+  } catch {
+    return null
+  }
+}
+
+const safeLink = (url) => bannerLink(url) !== null
+
+/** "Opens /events", "Opens example.com (new tab)", "Not clickable". */
+export function linkLabel(url) {
+  const link = bannerLink(url)
+  if (!link) return 'Link not valid'
+  if (link.type === 'none') return 'Not clickable — no link'
+  if (link.type === 'internal') return `Opens ${link.to}`
+  return `Opens ${new URL(link.href).hostname} in a new tab`
+}
+
+/**
+ * How big a hero banner image shows on a screen whose banner area is
+ * `frameWidth` px wide: the full width, at the image's own shape (never
+ * stretched or cropped) — what the customer site draws (HeroCarousel).
+ * null when the image's size is unknown.
+ */
+export function heroDisplaySize(frameWidth, imageW, imageH) {
+  if (!(frameWidth > 0 && imageW > 0 && imageH > 0)) return null
+  const height = Math.round(frameWidth * (imageH / imageW))
+  return { width: frameWidth, height, scale: frameWidth / imageW }
 }
 
 /**
@@ -89,7 +128,12 @@ const safeLink = (url) => {
  */
 export function bannerFormError(form, { otherCodes = [] } = {}) {
   const title = String(form.title || '').trim()
-  if (!title) return 'Give the banner a title — it is also the image’s description for screen readers.'
+  // An image alone is a complete hero banner; a title is needed only when
+  // there is no image, or for a Featured Promotions card (it prints it).
+  if (!title && !String(form.image || '').trim()) return 'Upload a banner image, or give the banner a title.'
+  if (!title && form.featuredPromotion) {
+    return 'Featured promotions need a title — add one, or untick “Show in Featured promotions” to publish the image as a hero banner only.'
+  }
   if (title.length > 120) return 'The title can be at most 120 characters.'
   if (String(form.text || '').length > 240) return 'The details can be at most 240 characters.'
   if (DISCOUNT_TYPES.includes(form.type)) {
@@ -103,7 +147,7 @@ export function bannerFormError(form, { otherCodes = [] } = {}) {
   }
   if (form.from && form.to && form.from > form.to) return '“Valid from” must be on or before “Valid to”.'
   if (form.imageMobile && !form.image) return 'Add the desktop image first — the phone image is an optional extra.'
-  if (!safeLink(form.ctaUrl)) return 'The button link must start with / (a page on this site) or https://.'
+  if (!safeLink(form.ctaUrl)) return 'The link must be a page on this site starting with / (e.g. /events) or a full https:// address.'
   if (form.published && form.showInHero && !form.image) {
     return 'Hero banners need an image. Upload one, or untick “Show in hero” to use this only as a Featured Promotion.'
   }
@@ -121,6 +165,10 @@ export function moveItem(list, index, delta) {
   ;[next[index], next[target]] = [next[target], next[index]]
   return next
 }
+
+/** What the admin list and messages call a banner — its title, or a
+ *  plain label for an image-only banner. */
+export const bannerName = (b) => String(b?.title || '').trim() || 'Image banner'
 
 /** Human labels for the server's banner `state`. */
 export const BANNER_STATES = {

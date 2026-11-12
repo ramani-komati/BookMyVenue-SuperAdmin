@@ -1,7 +1,7 @@
 // features/homepage/bannerSpec.js — run with `npm test` (node --test).
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { bannerFormError, checkImage, coverCrop, cropCaption, moveItem } from './bannerSpec.js'
+import { bannerFormError, bannerLink, bannerName, checkImage, coverCrop, cropCaption, heroDisplaySize, linkLabel, moveItem } from './bannerSpec.js'
 
 // The shape GET /api/admin/homepage sends (backend BANNER_IMAGE_SPEC).
 const SPEC = {
@@ -64,7 +64,7 @@ test('form rules mirror the server', () => {
   assert.match(bannerFormError({ ...ok, image: '' }), /need an image/)
   assert.equal(bannerFormError({ ...ok, image: '', showInHero: false }), '')        // promotion only
   assert.equal(bannerFormError({ ...ok, image: '', published: false }), '')        // a draft can wait
-  assert.match(bannerFormError({ ...ok, ctaUrl: 'javascript:alert(1)' }), /button link/)
+  assert.match(bannerFormError({ ...ok, ctaUrl: 'javascript:alert(1)' }), /link must be a page on this site/)
   assert.match(bannerFormError({ ...ok, from: '2026-12-10', to: '2026-12-01' }), /on or before/)
   assert.equal(bannerFormError({ title: 'Free popcorn', type: 'none', image: 'https://x', showInHero: true, published: true }), '')
 })
@@ -73,4 +73,48 @@ test('moveItem swaps neighbours and ignores moves off the ends', () => {
   assert.deepEqual(moveItem(['a', 'b', 'c'], 0, 1), ['b', 'a', 'c'])
   assert.deepEqual(moveItem(['a', 'b', 'c'], 0, -1), ['a', 'b', 'c'])
   assert.deepEqual(moveItem(['a', 'b', 'c'], 2, 1), ['a', 'b', 'c'])
+})
+
+test('a hero banner can be published with its image alone', () => {
+  const imageOnly = { title: '', text: '', type: 'none', image: 'https://x', showInHero: true, featuredPromotion: false, published: true }
+  assert.equal(bannerFormError(imageOnly), '')
+  assert.equal(bannerFormError({ ...imageOnly, published: false }), '')           // draft too
+  assert.match(bannerFormError({ ...imageOnly, image: '' }), /image, or give the banner a title/)
+  // Featured promotions print the title, so they still need one.
+  assert.match(bannerFormError({ ...imageOnly, featuredPromotion: true }), /Featured promotions need a title/)
+  assert.equal(bannerName(imageOnly), 'Image banner')
+  assert.equal(bannerName({ title: 'Diwali' }), 'Diwali')
+})
+
+test('hero banner links: site pages, real https sites, or none (not clickable)', () => {
+  assert.deepEqual(bannerLink(''), { type: 'none' })
+  assert.deepEqual(bannerLink('/events'), { type: 'internal', to: '/events' })
+  assert.deepEqual(bannerLink('/venues'), { type: 'internal', to: '/venues' })
+  assert.deepEqual(bannerLink('https://example.com/x'), { type: 'external', href: 'https://example.com/x' })
+  for (const bad of ['javascript:alert(1)', '//evil.example.com', 'https://', 'https://intranet', 'events', '/a b']) {
+    assert.equal(bannerLink(bad), null, bad)
+    assert.match(bannerFormError({ image: 'https://x', showInHero: true, featuredPromotion: false, published: true, ctaUrl: bad }), /link must be/)
+  }
+  assert.equal(linkLabel(''), 'Not clickable — no link')
+  assert.equal(linkLabel('/events'), 'Opens /events')
+  assert.equal(linkLabel('https://www.example.com/a'), 'Opens www.example.com in a new tab')
+  assert.equal(linkLabel('javascript:x'), 'Link not valid')
+})
+
+test('the preview size: full banner width at the image’s own shape, never cropped', () => {
+  // 2400×600 desktop art on a 1440px laptop (1360px banner) → 1360×340.
+  assert.deepEqual(heroDisplaySize(1360, 2400, 600), { width: 1360, height: 340, scale: 1360 / 2400 })
+  // The same art on a phone with no phone image: scaled down whole.
+  assert.equal(heroDisplaySize(358, 2400, 600).height, 90)
+  // Phone art 1200×600 → 358×179; an off-ratio 3000×1000 image keeps 3:1.
+  assert.equal(heroDisplaySize(358, 1200, 600).height, 179)
+  assert.equal(heroDisplaySize(1840, 3000, 1000).height, 613)
+  assert.equal(heroDisplaySize(1360, 0, 600), null)
+})
+
+test('off-ratio images are explained as shown whole, not trimmed', () => {
+  const { warnings } = checkImage(SPEC, 'desktop', { width: 1500, height: 500 })
+  assert.match(warnings[0], /shows whole/)
+  assert.match(warnings[0], /taller than 4:1 banners/)
+  assert.doesNotMatch(warnings.join(' '), /trimmed|cut off/)
 })

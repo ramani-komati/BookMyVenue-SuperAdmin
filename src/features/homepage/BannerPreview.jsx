@@ -1,114 +1,50 @@
 import { useState } from 'react'
-import { cropCaption } from './bannerSpec.js'
+import { heroDisplaySize, linkLabel } from './bannerSpec.js'
 import ImageFrame from '../../components/ui/ImageFrame.jsx'
 import { fitCaption } from '../../utils/imageSpecs.js'
 
-// The kicker line the customer site draws (features/home/homepage.js heroKicker).
-function kicker(form) {
-  const value = Number(form.value)
-  if (form.type === 'percent' && value > 0) return `FLAT ${value}% OFF`
-  if (form.type === 'flat' && value > 0) return `FLAT ₹${value} OFF`
-  if (form.type === 'complimentary') return 'COMPLIMENTARY'
-  return 'BOOK • CELEBRATE • MEMORIES'
-}
-
 /**
- * One hero frame, drawn at a fraction of its real size, by the customer
- * site's two rules (HeroCarousel):
- *   • image-only banner — the frame takes the artwork's own shape and shows
- *     it WHOLE (never cropped); the caption gives the height it gets there;
- *   • title over the image — the real banner's proportions (the server's
- *     imageSpec.frames, from the site's CSS), object-fit: cover on the
- *     admin's chosen focal point — so what is trimmed here is exactly what
- *     that screen trims.
+ * One screen size, drawn at a fraction of its real size, by the customer
+ * site's rule (HeroCarousel, 2026-11-12): the uploaded image IS the banner —
+ * the full banner width at the image's own shape, never stretched or
+ * cropped, with nothing drawn over it. Phones (≤640px) show the phone image
+ * when there is one, otherwise the desktop image scaled down whole.
+ * `frame.width` is that screen's banner width (server imageSpec.frames).
  */
-function Frame({ frame, form, image, dims, width }) {
+function Frame({ frame, image, dims, phoneArt, width }) {
   const [broken, setBroken] = useState(false)
-  const phone = frame.viewport <= 640
-  const showText = !image || broken || form.showText
-  const artOnly = Boolean(image) && !broken && !showText
-  // Phones with NO phone image: the customer site crops wide image-only
-  // art to 2:1 so its words stay readable (customer HeroCarousel
-  // phoneArtFocus) — the admin's phone side, or the left while that is
-  // still the default centre. Drawn the same here.
-  const phoneCrop = phone && artOnly && !form.imageMobile
-  const phoneArtFocus = form.imageMobilePosition && form.imageMobilePosition !== 'center' ? form.imageMobilePosition : 'left'
-  const artRatio = phoneCrop ? 2 : dims?.width && dims?.height ? Math.min(6, Math.max(1.2, dims.width / dims.height)) : (phone && form.imageMobile ? 2 : 4)
-  const shown = artOnly ? { width: frame.width, height: Math.round(frame.width / artRatio) } : frame
-  const scale = width / shown.width
-  const focus = (phone ? form.imageMobilePosition : form.imagePosition) || 'center'
-  const code = ['percent', 'flat'].includes(form.type) && form.showCode ? String(form.code || '').toUpperCase() : ''
-  const f = (px) => Math.max(7, px * scale * (phone ? 1 : 1.25))
+  const [measured, setMeasured] = useState(null)
+  const known = dims?.width && dims?.height ? dims : measured
+  const size = known ? heroDisplaySize(frame.width, known.width, known.height) : null
   return (
     <figure style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div
         style={{
-          // Shrinks with a narrow panel but never changes shape.
-          position: 'relative', width: '100%', maxWidth: width, aspectRatio: `${shown.width} / ${shown.height}`,
-          borderRadius: Math.max(6, 16 * scale),
-          overflow: 'hidden', background: 'var(--navy-800)', display: 'flex',
+          width: '100%', maxWidth: width, borderRadius: 8, overflow: 'hidden', lineHeight: 0,
+          background: 'var(--neutral-100)', border: '1px solid var(--border-subtle)',
+          ...(!image || broken ? { aspectRatio: phoneArt ? '2 / 1' : '4 / 1' } : null),
         }}
       >
         {image && !broken && (
-          <img src={image} alt="" onError={() => setBroken(true)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: artOnly && !phoneCrop ? 'contain' : 'cover', objectPosition: phoneCrop ? phoneArtFocus : artOnly ? 'center' : focus }} />
-        )}
-        {image && !broken && showText && (
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'absolute', inset: 0,
-              background: phone ? 'rgba(6,21,44,.74)' : 'linear-gradient(90deg, rgba(6,21,44,.92) 0%, rgba(6,21,44,.72) 45%, rgba(6,21,44,.18) 100%)',
+          <img
+            src={image}
+            alt=""
+            onError={() => setBroken(true)}
+            onLoad={(e) => {
+              const { naturalWidth: w, naturalHeight: h } = e.currentTarget
+              if (w > 0 && h > 0) setMeasured({ width: w, height: h })
             }}
+            style={{ display: 'block', width: '100%', height: 'auto' }}
           />
         )}
-        {!artOnly && (
-        <div
-          style={{
-            position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: showText ? 'center' : 'flex-end',
-            padding: `${Math.max(4, (phone ? 18 : 36) * scale)}px ${Math.max(6, (phone ? 20 : 60) * scale)}px`, gap: Math.max(2, 6 * scale), color: '#fff', minWidth: 0,
-          }}
-        >
-          {showText && (
-            <>
-              <span style={{ fontSize: f(phone ? 11 : 13), fontWeight: 700, letterSpacing: '.14em', opacity: 0.85 }}>{kicker(form)}</span>
-              <span style={{ fontSize: f(phone ? 22 : 34), fontWeight: 800, lineHeight: 1.15, overflowWrap: 'anywhere' }}>{form.title || 'Banner title'}</span>
-              {form.text && <span style={{ fontSize: f(phone ? 14 : 16), opacity: 0.8 }}>{form.text}</span>}
-            </>
-          )}
-          {code && (
-            <span style={{ alignSelf: 'flex-start', border: '1px dashed rgba(255,255,255,.7)', borderRadius: 999, padding: `${Math.max(1, 6 * scale)}px ${Math.max(4, 14 * scale)}px`, fontSize: f(13), fontWeight: 800 }}>
-              USE CODE {code}
-            </span>
-          )}
-          {form.ctaLabel && (
-            <span style={{ alignSelf: 'flex-start', background: '#fff', color: 'var(--navy-800)', borderRadius: Math.max(3, 10 * scale), padding: `${Math.max(2, 10 * scale)}px ${Math.max(4, 22 * scale)}px`, fontSize: f(15), fontWeight: 700 }}>
-              {form.ctaLabel}
-            </span>
-          )}
-        </div>
-        )}
       </div>
-      {/* Image-only banner: like the site, the code and button sit UNDER the
-          artwork so they never cover it. */}
-      {artOnly && (code || form.ctaLabel) && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', maxWidth: width }}>
-          {code && (
-            <span style={{ border: '1px dashed var(--success-600, #079455)', background: 'var(--success-50, #ecfdf3)', color: 'var(--success-700, #067647)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 800 }}>
-              USE CODE {code}
-            </span>
-          )}
-          {form.ctaLabel && (
-            <span style={{ background: 'var(--red-600, #d71620)', color: '#fff', borderRadius: 8, padding: '4px 12px', fontSize: 12.5, fontWeight: 700 }}>
-              {form.ctaLabel}
-            </span>
-          )}
-        </div>
-      )}
       <figcaption style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-        <strong style={{ color: 'var(--text-heading)' }}>{frame.label}</strong> · {shown.width}×{shown.height}px banner
-        {artOnly
-          ? ' · Shows the whole image'
-          : dims?.width && image ? ` · ${cropCaption(dims.width, dims.height, frame.width, frame.height)}` : ''}
+        <strong style={{ color: 'var(--text-heading)' }}>{frame.label}</strong> ({frame.viewport}px screen)
+        {size ? ` · shows ${size.width}×${size.height}px` : ''}
+        {image && !broken ? ` · whole ${phoneArt ? 'phone' : 'desktop'} image` : ''}
+        {size && image && !broken ? `, ${size.scale >= 1 ? 'enlarged' : 'scaled'} to ${Math.round(size.scale * 100)}%` : ''}
+        {broken ? ' · this image could not be loaded' : ''}
+        {size && size.scale > 1.05 ? ' — upload a larger image to stay sharp here' : ''}
       </figcaption>
     </figure>
   )
@@ -143,10 +79,8 @@ function PromoCardFrame({ form }) {
 }
 
 /**
- * How the banner will look on each screen size, before it is published.
- * Phones use the phone image when there is one (as the customer site does,
- * at 640px and narrower), otherwise the desktop image — whole for an
- * image-only banner, cropped on its focal point when words go over it.
+ * How the banner will look on each screen size, before it is published —
+ * the same rules the customer site draws (see Frame), plus where a tap goes.
  */
 export default function BannerPreview({ spec, form }) {
   const frames = spec?.frames || []
@@ -155,17 +89,18 @@ export default function BannerPreview({ spec, form }) {
   const mobileDims = form.imageMobileWidth ? { width: form.imageMobileWidth, height: form.imageMobileHeight } : null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {!form.image && <div style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>Upload the banner image to see it on each screen size.</div>}
+      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-heading)' }}>Tap: {linkLabel(form.ctaUrl)}</div>
       {frames.map((frame) => {
         const phone = frame.viewport <= 640
-        const image = phone ? (form.imageMobile || form.image) : form.image
-        const dims = phone && form.imageMobile ? mobileDims : desktopDims
+        const phoneArt = phone && Boolean(form.imageMobile)
         return (
           <Frame
-            key={frame.label}
+            key={`${frame.label}|${phoneArt ? form.imageMobile : form.image}`}
             frame={frame}
-            form={form}
-            image={image}
-            dims={dims}
+            image={phoneArt ? form.imageMobile : form.image}
+            dims={phoneArt ? mobileDims : desktopDims}
+            phoneArt={phoneArt}
             width={phone ? 280 : Math.min(480, frame.width / 3.2)}
           />
         )
